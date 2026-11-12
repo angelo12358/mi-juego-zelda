@@ -2,22 +2,72 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Aventura estilo Zelda</title>
 <style>
-  body { margin:0; background:#14161c; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:monospace; color:#fff; }
-  canvas { border:4px solid #000; image-rendering:pixelated; width:768px; height:576px; box-shadow:0 0 30px #000; }
-  #ayuda { margin-top:10px; font-size:13px; opacity:.8; }
+  * { -webkit-tap-highlight-color: transparent; -webkit-user-select:none; user-select:none; touch-action:none; }
+  html, body { margin:0; height:100%; background:#14161c; overflow:hidden; font-family:monospace; color:#fff; }
+  body { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  #marco { position:relative; display:flex; align-items:center; justify-content:center; width:100%; flex:1; min-height:0; }
+  canvas { image-rendering:pixelated; border:3px solid #000; box-shadow:0 0 30px #000; background:#000; }
+  #ayuda { font-size:12px; opacity:.7; padding:6px; text-align:center; }
+
+  /* Controles tactiles: solo se muestran en pantallas tactiles */
+  #tactil { display:none; }
+  @media (pointer: coarse) {
+    #tactil { display:block; }
+    #ayuda { display:none; }
+  }
+  #cruz { position:fixed; left:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:150px; height:150px; }
+  .btn { position:absolute; background:rgba(255,255,255,.18); border:2px solid rgba(255,255,255,.55); border-radius:14px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:22px; font-weight:bold; }
+  .btn.on { background:rgba(255,255,255,.5); }
+  #bArriba { left:50px; top:0;     width:50px; height:50px; }
+  #bAbajo  { left:50px; top:100px; width:50px; height:50px; }
+  #bIzq    { left:0;    top:50px;  width:50px; height:50px; }
+  #bDer    { left:100px;top:50px;  width:50px; height:50px; }
+  #acciones { position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom)); width:170px; height:150px; }
+  #bEspada { right:0;   bottom:0;   width:84px; height:84px; border-radius:50%; background:rgba(216,58,42,.35); border-color:rgba(255,160,140,.8); font-size:15px; }
+  #bCorrer { right:92px; bottom:70px; width:68px; height:68px; border-radius:50%; background:rgba(58,95,208,.35); border-color:rgba(160,190,255,.8); font-size:12px; }
 </style>
 </head>
 <body>
-<canvas id="c" width="256" height="192"></canvas>
+<div id="marco"><canvas id="c" width="256" height="192"></canvas></div>
 <div id="ayuda">Flechas/WASD: mover · Espacio: espada · Shift: correr · Enter: reiniciar</div>
+
+<div id="tactil">
+  <div id="cruz">
+    <div class="btn" id="bArriba" data-k="arrowup">▲</div>
+    <div class="btn" id="bIzq"    data-k="arrowleft">◀</div>
+    <div class="btn" id="bDer"    data-k="arrowright">▶</div>
+    <div class="btn" id="bAbajo"  data-k="arrowdown">▼</div>
+  </div>
+  <div id="acciones">
+    <div class="btn" id="bCorrer" data-k="shift">CORRER</div>
+    <div class="btn" id="bEspada" data-k=" ">ESPADA</div>
+  </div>
+</div>
+
 <script>
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 const T = 16;
 const COLS = 16, ROWS = 12;
+
+// ================= AJUSTE DE PANTALLA =================
+// Escala el canvas en numeros enteros para que el pixel art se vea nitido
+function ajustar(){
+  const marco = document.getElementById('marco');
+  const aw = marco.clientWidth - 8, ah = marco.clientHeight - 8;
+  let k = Math.max(1, Math.floor(Math.min(aw / c.width, ah / c.height)));
+  // si no cabe entero (celular chico), usar escala fraccionaria
+  if (c.width * k > aw || c.height * k > ah) k = Math.min(aw / c.width, ah / c.height);
+  c.style.width  = (c.width  * k) + 'px';
+  c.style.height = (c.height * k) + 'px';
+}
+addEventListener('resize', ajustar);
+addEventListener('orientationchange', () => setTimeout(ajustar, 150));
+ajustar();
 
 // ================= SPRITES EN PIXEL ART =================
 const PAL = {
@@ -258,10 +308,26 @@ for (let i=0;i<10;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDe
 for (let i=0;i<7;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y)) rocas.push({x,y,w:14,h:12,ox:1,oy:3}); }
 const solidos = [...arboles,...arbustos,...rocas];
 
-// ================= ENTRADA =================
+// ================= ENTRADA: TECLADO =================
 const keys = {};
 addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault(); });
 addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+
+// ================= ENTRADA: TACTIL =================
+// Cada boton usa pointer events, asi funcionan varios dedos a la vez
+// (por ejemplo moverte con el pulgar izquierdo y atacar con el derecho)
+document.querySelectorAll('.btn').forEach(b => {
+  const k = b.dataset.k;
+  const activar = e => { e.preventDefault(); keys[k] = true;  b.classList.add('on'); b.setPointerCapture && b.setPointerCapture(e.pointerId); };
+  const soltar  = e => { e.preventDefault(); keys[k] = false; b.classList.remove('on'); };
+  b.addEventListener('pointerdown', activar);
+  b.addEventListener('pointerup', soltar);
+  b.addEventListener('pointercancel', soltar);
+  b.addEventListener('lostpointercapture', soltar);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+});
+// Tocar la pantalla cuando termina el juego reinicia
+c.addEventListener('pointerdown', () => { if (fin) location.reload(); });
 
 function choca(x,y,w,h){
   if (x<0||y<0||x+w>c.width||y+h>c.height) return true;
@@ -426,7 +492,7 @@ function dibujar(){
     ctx.fillStyle='#fff'; ctx.textAlign='center';
     ctx.font='bold 16px monospace';
     ctx.fillText(fin==='ganaste'?'¡Ganaste!':'Game Over', c.width/2, c.height/2-4);
-    ctx.font='8px monospace'; ctx.fillText('Enter para reiniciar', c.width/2, c.height/2+14);
+    ctx.font='8px monospace'; ctx.fillText('Enter o toca la pantalla para reiniciar', c.width/2, c.height/2+14);
     ctx.textAlign='left';
   }
 }
