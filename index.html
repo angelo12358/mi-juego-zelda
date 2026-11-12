@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Aventura estilo Zelda</title>
+<style>
+  body { margin:0; background:#14161c; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; font-family:monospace; color:#fff; }
+  canvas { border:4px solid #000; image-rendering:pixelated; width:768px; height:576px; box-shadow:0 0 30px #000; }
+  #ayuda { margin-top:10px; font-size:13px; opacity:.8; }
+</style>
+</head>
+<body>
+<canvas id="c" width="256" height="192"></canvas>
+<div id="ayuda">Flechas/WASD: mover · Espacio: espada · Shift: correr · Enter: reiniciar</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const T = 16;
+const COLS = 16, ROWS = 12;
+
+// ================= SPRITES EN PIXEL ART =================
+const PAL = {
+  'K':'#1a1020','k':'#3a2a2a',
+  'g':'#2f8f2f','G':'#58c04a','h':'#8be06a',
+  's':'#f2c9a0','S':'#d9a073',
+  'y':'#f5d84a','Y':'#c9a020',
+  'b':'#3a5fd0','B':'#8fb0ff','n':'#1e2f7a',
+  'r':'#d83a2a','R':'#ff7a5a','d':'#8f1f1a',
+  'w':'#ffffff','e':'#cfe6f2','E':'#8fb0c8',
+  'o':'#c8792a','O':'#8a4f1a',
+  'p':'#b84a8a'
+};
+function crearSprite(filas){
+  const cv = document.createElement('canvas');
+  cv.width = filas[0].length; cv.height = filas.length;
+  const x = cv.getContext('2d');
+  filas.forEach((f,j)=>[...f].forEach((ch,i)=>{
+    if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(i,j,1,1); }
+  }));
+  return cv;
+}
+function espejo(cv){
+  const o = document.createElement('canvas'); o.width=cv.width; o.height=cv.height;
+  const x = o.getContext('2d'); x.translate(cv.width,0); x.scale(-1,1); x.drawImage(cv,0,0); return o;
+}
+
+const LINK_ABAJO = [
+"....KKKKKKK.....",
+"...KgggggggK....",
+"..KgGGGGGGGgK...",
+".KgGhhGGGGGGgK..",
+".KgGGGGGGGGGgK..",
+"KgggKKKKKKKgggK.",
+"KgKssssssssKgK..",
+".KsKKsssKKsKsK..",
+".KssKysssKysK...",
+"..KssssSssssK...",
+"..KKggGGGggKK...",
+".KbBKgGGGgKyK...",
+".KbnKgGGGgKsK...",
+".KbBKggggKKK....",
+"..KKKoKKoKK.....",
+"...KoOK.KOoK...."
+].map(f=>f.padEnd(16,'.'));
+
+const LINK_ARRIBA = [
+"....KKKKKKK.....",
+"...KgggggggK....",
+"..KgGGGGGGGgK...",
+".KgGhhGGGGGGgK..",
+".KgGGGGGGGGGgK..",
+"KgggGGGGGGGgggK.",
+"KgKyyyyyyyyyKgK.",
+".KyyyyyyyyyyyK..",
+".KyyYyyyyyYyyK..",
+"..KyyyyyyyyyK...",
+"..KKggGGGggKK...",
+".KsKgGGGGgKbK...",
+".KsKgGGGGgKnK...",
+".KKKggggggKbK...",
+"..KKKoKKoKK.....",
+"...KoOK.KOoK...."
+].map(f=>f.padEnd(16,'.'));
+
+const LINK_DER = [
+"....KKKKKKK.....",
+"...KgggggggK....",
+"..KgGGGGGGGgK...",
+".KgGhhGGGGGGgKK.",
+".KgGGGGGGGGGggK.",
+"KgggKKKKKKKKgK..",
+"KgKyKssssssK....",
+".KyyKsKKsKsK....",
+".KyKsssKysK.....",
+"..KKssssSsK.....",
+"..KKggGGGgK.....",
+"..KsKgGGGgKbK...",
+"..KsKgGGGgKnK...",
+"...KKggggKKbK...",
+"...KKoKKoKK.....",
+"....KoOK.KOK...."
+].map(f=>f.padEnd(16,'.'));
+const LINK_IZQ = espejo(crearSprite(LINK_DER));
+
+const SPR_LINK = {
+  abajo: crearSprite(LINK_ABAJO),
+  arriba: crearSprite(LINK_ARRIBA),
+  der: crearSprite(LINK_DER),
+  izq: LINK_IZQ
+};
+
+const OCTO = [
+"....KKKKKKKK....",
+"..KKrrrrrrrrKK..",
+".KrrRRRRRRRRrrK.",
+".KrRRwwRRwwRRrK.",
+"KrrRRwKwRwKwRrrK",
+"KrrRRwwwRwwwRrrK",
+"KrrrRRRRRRRRrrrK",
+"KrrrrKKKKKKrrrrK",
+"KdrrrKppppKrrrdK",
+".KdrrrKKKKrrrdK.",
+".KdrrrrrrrrrrdK.",
+"KrKdrdKdrdKdrKrK",
+"KrrKKrKKrKKrKrrK",
+".KrK.KrK.KrK.K..",
+"..K...K...K.....",
+"................"
+].map(f=>f.padEnd(16,'.'));
+const SPR_OCTO = crearSprite(OCTO);
+
+const SPR_CORAZON = crearSprite([
+"..KKK..KKK..",
+".KrrrKKrrrK.",
+"KrRRrrrrrrrK",
+"KrRrrrrrrrdK",
+"KrrrrrrrrrdK",
+".KrrrrrrrdK.",
+"..KrrrrrdK..",
+"...KrrrdK...",
+"....KrdK....",
+".....KK....."
+]);
+const SPR_RUPIA = crearSprite([
+"...KK...",
+"..KGGK..",
+".KGhGgK.",
+".KGhGgK.",
+".KGhGgK.",
+".KGGggK.",
+"..KggK..",
+"...KK..."
+]);
+
+const SPR_ESPADA_V = crearSprite([
+"..KK..",
+".KwEK.",
+".KweK.",
+".KweK.",
+".KweK.",
+".KweK.",
+".KweK.",
+".KweK.",
+"KyyYyK",
+".KooK.",
+".KOOK.",
+"..KK.."
+]);
+function rotar(cv, grados){
+  const o = document.createElement('canvas');
+  const sw = (grados===90||grados===270);
+  o.width = sw?cv.height:cv.width; o.height = sw?cv.width:cv.height;
+  const x = o.getContext('2d');
+  x.translate(o.width/2,o.height/2); x.rotate(grados*Math.PI/180);
+  x.drawImage(cv,-cv.width/2,-cv.height/2); return o;
+}
+const SPR_ESPADA = {
+  arriba: SPR_ESPADA_V,
+  abajo:  rotar(SPR_ESPADA_V,180),
+  der:    rotar(SPR_ESPADA_V,90),
+  izq:    rotar(SPR_ESPADA_V,270)
+};
+
+// ================= TERRENO PROCEDURAL =================
+function rnd(seed){ let s=seed; return ()=>{ s=(s*1664525+1013904223)%4294967296; return s/4294967296; }; }
+const fondo = document.createElement('canvas'); fondo.width=c.width; fondo.height=c.height;
+(function(){
+  const x = fondo.getContext('2d'); const r = rnd(7);
+  x.fillStyle='#4c9a3a'; x.fillRect(0,0,c.width,c.height);
+  for (let i=0;i<900;i++){
+    const px=Math.floor(r()*c.width), py=Math.floor(r()*c.height);
+    x.fillStyle = r()<0.5 ? '#5aad45' : '#3f8530';
+    x.fillRect(px,py,1,2);
+  }
+  for (let i=0;i<60;i++){
+    const px=Math.floor(r()*c.width), py=Math.floor(r()*c.height);
+    x.fillStyle='#a8e87a'; x.fillRect(px,py,1,1); x.fillRect(px-1,py+1,3,1);
+  }
+  for (let i=0;i<14;i++){
+    const px=Math.floor(r()*(c.width-4)), py=Math.floor(r()*(c.height-4));
+    x.fillStyle='#fff3a0'; x.fillRect(px+1,py,2,2);
+    x.fillStyle='#f5c020'; x.fillRect(px+1,py+1,1,1);
+  }
+})();
+
+function crearArbol(){
+  const cv = document.createElement('canvas'); cv.width=32; cv.height=32;
+  const x = cv.getContext('2d');
+  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
+  x.fillStyle='#1a1020'; x.fillRect(11,22,10,10);
+  x.fillStyle='#8a4f1a'; x.fillRect(12,22,8,9);
+  x.fillStyle='#c8792a'; x.fillRect(13,22,2,9);
+  x.fillStyle='#5a3210'; x.fillRect(18,22,2,9);
+  blob(16,13,15,13,'#0c2a14');
+  blob(16,13,14,12,'#1f6b2a');
+  blob(14,14,12,10,'#2f8f38');
+  blob(12,10,9,7,'#4cc050');
+  blob(10,8,5,4,'#8be06a');
+  x.fillStyle='#1a5a24'; x.fillRect(6,20,20,2);
+  x.fillStyle='#6fd45a'; [[8,12],[14,8],[20,11],[11,16],[18,16]].forEach(p=>x.fillRect(p[0],p[1],3,2));
+  x.fillStyle='#1f6b2a'; [[22,16],[6,18],[16,19]].forEach(p=>x.fillRect(p[0],p[1],3,2));
+  return cv;
+}
+const SPR_ARBOL = crearArbol();
+
+function crearArbusto(){
+  const cv = document.createElement('canvas'); cv.width=16; cv.height=16;
+  const x = cv.getContext('2d');
+  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
+  blob(8,9,8,6,'#0c2a14'); blob(8,9,7,5,'#2f8f38'); blob(6,7,4,3,'#6fd45a');
+  x.fillStyle='#1f6b2a'; x.fillRect(9,11,4,2);
+  return cv;
+}
+const SPR_ARBUSTO = crearArbusto();
+
+function crearRoca(){
+  const cv = document.createElement('canvas'); cv.width=16; cv.height=16;
+  const x = cv.getContext('2d');
+  x.fillStyle='#1a1020';
+  x.fillRect(3,4,10,1); x.fillRect(2,5,12,9); x.fillRect(3,14,10,1);
+  x.fillStyle='#8a8a92'; x.fillRect(3,5,10,9);
+  x.fillStyle='#b8b8c2'; x.fillRect(4,5,6,3); x.fillRect(4,8,3,2);
+  x.fillStyle='#5a5a66'; x.fillRect(9,10,4,4); x.fillRect(3,12,10,2);
+  x.fillStyle='#3a3a44'; x.fillRect(7,9,1,3);
+  return cv;
+}
+const SPR_ROCA = crearRoca();
+
+// ================= MUNDO =================
+function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+const arboles=[], arbustos=[], rocas=[];
+const p = { x:120, y:90, w:10, h:10, vel:0.9, dir:'abajo', vida:6, vidaMax:6, est:100,
+            atacando:0, inv:0, rupias:0, paso:0 };
+function lejosDelInicio(x,y){ return Math.hypot(x-p.x,y-p.y) > 40; }
+for (let i=0;i<9;i++){ const x=rand(0,COLS-2)*T, y=rand(0,ROWS-2)*T; if(lejosDelInicio(x,y)) arboles.push({x,y,w:28,h:20,ox:2,oy:10}); }
+for (let i=0;i<10;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y)) arbustos.push({x,y,w:14,h:12,ox:1,oy:3}); }
+for (let i=0;i<7;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y)) rocas.push({x,y,w:14,h:12,ox:1,oy:3}); }
+const solidos = [...arboles,...arbustos,...rocas];
+
+// ================= ENTRADA =================
+const keys = {};
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault(); });
+addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+
+function choca(x,y,w,h){
+  if (x<0||y<0||x+w>c.width||y+h>c.height) return true;
+  return solidos.some(s => x < s.x+s.ox+s.w && x+w > s.x+s.ox && y < s.y+s.oy+s.h && y+h > s.y+s.oy);
+}
+function solapa(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+
+// ================= ENEMIGOS =================
+const DIRS = [[0,-1,'arriba'],[0,1,'abajo'],[-1,0,'izq'],[1,0,'der']];
+const enemigos=[], balas=[], drops=[], particulas=[];
+for (let i=0;i<5;i++){
+  let ex,ey,n=0;
+  do { ex=rand(1,COLS-2)*T; ey=rand(1,ROWS-2)*T; n++; } while ((choca(ex,ey,12,12) || Math.hypot(ex-p.x,ey-p.y)<70) && n<200);
+  enemigos.push({x:ex,y:ey,w:12,h:12,vida:2,dir:rand(0,3),t:rand(30,90),disp:rand(80,200),golpe:0});
+}
+
+function espadaRect(){
+  if (p.dir==='arriba') return {x:p.x-1, y:p.y-12, w:6,  h:12};
+  if (p.dir==='abajo')  return {x:p.x+5, y:p.y+p.h-1, w:6, h:12};
+  if (p.dir==='izq')    return {x:p.x-12,y:p.y+3,  w:12, h:6};
+  return                       {x:p.x+p.w-1,y:p.y+3, w:12, h:6};
+}
+function chispas(x,y,col){ for(let i=0;i<8;i++) particulas.push({x,y,dx:(Math.random()-.5)*2,dy:(Math.random()-.5)*2,vida:20,col}); }
+
+let fin = false;
+function dano(){ p.vida--; p.inv=70; chispas(p.x+5,p.y+5,'#ff5050'); if (p.vida<=0) fin='perdiste'; }
+
+// ================= ACTUALIZAR =================
+function actualizar(){
+  if (fin){ if (keys['enter']) location.reload(); return; }
+
+  let dx=0, dy=0;
+  if (keys['arrowleft'] ||keys['a']) { dx=-1; p.dir='izq'; }
+  if (keys['arrowright']||keys['d']) { dx=1;  p.dir='der'; }
+  if (keys['arrowup']   ||keys['w']) { dy=-1; p.dir='arriba'; }
+  if (keys['arrowdown'] ||keys['s']) { dy=1;  p.dir='abajo'; }
+  if (dx&&dy){ dx*=0.7; dy*=0.7; }
+  let v = p.vel;
+  const corre = keys['shift'] && p.est>0 && (dx||dy);
+  if (corre){ v*=1.7; p.est-=1.2; } else p.est=Math.min(100,p.est+0.6);
+  if (p.atacando>0) v*=0.3;
+  if (!choca(p.x+dx*v,p.y,p.w,p.h)) p.x+=dx*v;
+  if (!choca(p.x,p.y+dy*v,p.w,p.h)) p.y+=dy*v;
+  if (dx||dy) p.paso+=corre?0.3:0.18;
+
+  if (keys[' '] && p.atacando===0 && p.est>=10){ p.atacando=16; p.est-=10; }
+  if (p.atacando>0){
+    p.atacando--;
+    const e = espadaRect();
+    enemigos.forEach(en=>{
+      if (en.golpe>0) return;
+      if (solapa(e,en)){
+        en.vida--; en.golpe=20; chispas(en.x+6,en.y+6,'#ffffff');
+        const d = DIRS.find(d=>d[2]===p.dir); en.x+=d[0]*8; en.y+=d[1]*8;
+      }
+    });
+  }
+  if (p.inv>0) p.inv--;
+
+  for (let i=enemigos.length-1;i>=0;i--){
+    const en = enemigos[i];
+    if (en.golpe>0) en.golpe--;
+    if (en.vida<=0){
+      chispas(en.x+6,en.y+6,'#ffd84a');
+      drops.push({x:en.x+2,y:en.y+2,tipo:Math.random()<0.35?'corazon':'rupia'});
+      enemigos.splice(i,1); continue;
+    }
+    en.t--; en.disp--;
+    if (en.t<=0){ en.dir=rand(0,3); en.t=rand(30,90); }
+    const d = DIRS[en.dir];
+    const nx=en.x+d[0]*0.4, ny=en.y+d[1]*0.4;
+    if (!choca(nx,ny,en.w,en.h)){ en.x=nx; en.y=ny; } else en.t=0;
+    if (en.disp<=0){
+      en.disp=rand(100,220);
+      balas.push({x:en.x+4,y:en.y+4,w:4,h:4,dx:d[0]*1.6,dy:d[1]*1.6});
+    }
+    if (p.inv===0 && solapa(p,en)) dano();
+  }
+
+  for (let i=balas.length-1;i>=0;i--){
+    const b=balas[i]; b.x+=b.dx; b.y+=b.dy;
+    if (choca(b.x,b.y,b.w,b.h)){ balas.splice(i,1); continue; }
+    if (p.inv===0 && solapa(p,b)){ dano(); balas.splice(i,1); }
+  }
+
+  for (let i=drops.length-1;i>=0;i--){
+    if (solapa(p,{x:drops[i].x,y:drops[i].y,w:10,h:10})){
+      if (drops[i].tipo==='corazon') p.vida=Math.min(p.vidaMax,p.vida+1); else p.rupias++;
+      drops.splice(i,1);
+    }
+  }
+  for (let i=particulas.length-1;i>=0;i--){
+    const q=particulas[i]; q.x+=q.dx; q.y+=q.dy; q.vida--; if(q.vida<=0) particulas.splice(i,1);
+  }
+  if (enemigos.length===0) fin='ganaste';
+}
+
+// ================= DIBUJO =================
+function sombra(x,y,w){ ctx.fillStyle='rgba(0,30,0,.35)'; ctx.fillRect(Math.floor(x),Math.floor(y),w,2); }
+
+function dibujarLink(){
+  if (p.inv>0 && Math.floor(p.inv/4)%2) return;
+  const bob = (Math.floor(p.paso)%2===1) ? -1 : 0;
+  sombra(p.x-1,p.y+11,12);
+  ctx.drawImage(SPR_LINK[p.dir], Math.floor(p.x-3), Math.floor(p.y-5+bob));
+  if (p.atacando>0){
+    const e=espadaRect(); const s=SPR_ESPADA[p.dir];
+    let sx=e.x, sy=e.y;
+    if (p.dir==='arriba'){ sx=p.x+2; sy=p.y-11; }
+    if (p.dir==='abajo') { sx=p.x+2; sy=p.y+9; }
+    if (p.dir==='izq')   { sx=p.x-11; sy=p.y+2; }
+    if (p.dir==='der')   { sx=p.x+9;  sy=p.y+2; }
+    ctx.drawImage(s, Math.floor(sx), Math.floor(sy));
+    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1;
+    ctx.strokeRect(e.x+.5,e.y+.5,e.w-1,e.h-1);
+  }
+}
+function dibujarOctorok(en){
+  ctx.globalAlpha = (en.golpe>0 && Math.floor(en.golpe/3)%2) ? 0.35 : 1;
+  sombra(en.x,en.y+12,12);
+  ctx.drawImage(SPR_OCTO, Math.floor(en.x-2), Math.floor(en.y-3));
+  ctx.globalAlpha=1;
+}
+function dibujarHUD(){
+  ctx.fillStyle='#000'; ctx.fillRect(3,3,20,20);
+  ctx.strokeStyle='#d8d8e0'; ctx.strokeRect(3.5,3.5,19,19);
+  ctx.drawImage(SPR_ESPADA.arriba, 10, 6);
+  for (let i=0;i<p.vidaMax;i++){
+    const cx=150+(i%6)*15, cy=4;
+    if (i<p.vida) ctx.drawImage(SPR_CORAZON,cx,cy);
+    else { ctx.fillStyle='#14101c'; ctx.fillRect(cx+1,cy+1,10,8); }
+  }
+  ctx.fillStyle='#000'; ctx.fillRect(27,5,52,7);
+  ctx.fillStyle='#1a2a4a'; ctx.fillRect(28,6,50,5);
+  ctx.fillStyle='#5ab8ff'; ctx.fillRect(28,6,Math.max(0,p.est*0.5),5);
+  ctx.fillStyle='#bfe6ff'; ctx.fillRect(28,6,Math.max(0,p.est*0.5),1);
+  ctx.drawImage(SPR_RUPIA,27,15);
+  ctx.fillStyle='#fff'; ctx.font='8px monospace'; ctx.fillText('x'+p.rupias,37,22);
+}
+
+function dibujar(){
+  ctx.drawImage(fondo,0,0);
+  const cosas = [];
+  rocas.forEach(o=>cosas.push({y:o.y+16,f:()=>ctx.drawImage(SPR_ROCA,o.x,o.y)}));
+  arbustos.forEach(o=>cosas.push({y:o.y+16,f:()=>{ sombra(o.x+1,o.y+13,14); ctx.drawImage(SPR_ARBUSTO,o.x,o.y); }}));
+  arboles.forEach(o=>cosas.push({y:o.y+32,f:()=>{ sombra(o.x+2,o.y+30,28); ctx.drawImage(SPR_ARBOL,o.x,o.y); }}));
+  drops.forEach(d=>cosas.push({y:d.y,f:()=>{
+    const flota=Math.sin(Date.now()/150+d.x)*1;
+    ctx.drawImage(d.tipo==='corazon'?SPR_CORAZON:SPR_RUPIA, d.x, d.y+flota);
+  }}));
+  enemigos.forEach(e=>cosas.push({y:e.y+12,f:()=>dibujarOctorok(e)}));
+  cosas.push({y:p.y+10,f:dibujarLink});
+  balas.forEach(b=>cosas.push({y:b.y,f:()=>{ ctx.fillStyle='#1a1020'; ctx.fillRect(b.x-1,b.y-1,6,6); ctx.fillStyle='#c8792a'; ctx.fillRect(b.x,b.y,4,4); ctx.fillStyle='#ffd08a'; ctx.fillRect(b.x,b.y,2,2); }}));
+  cosas.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
+
+  particulas.forEach(q=>{ ctx.fillStyle=q.col; ctx.globalAlpha=q.vida/20; ctx.fillRect(q.x,q.y,2,2); });
+  ctx.globalAlpha=1;
+  dibujarHUD();
+
+  if (fin){
+    ctx.fillStyle='rgba(10,8,20,.75)'; ctx.fillRect(0,0,c.width,c.height);
+    ctx.fillStyle='#fff'; ctx.textAlign='center';
+    ctx.font='bold 16px monospace';
+    ctx.fillText(fin==='ganaste'?'¡Ganaste!':'Game Over', c.width/2, c.height/2-4);
+    ctx.font='8px monospace'; ctx.fillText('Enter para reiniciar', c.width/2, c.height/2+14);
+    ctx.textAlign='left';
+  }
+}
+
+function loop(){ actualizar(); dibujar(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
