@@ -32,7 +32,7 @@
 </head>
 <body>
 <div id="marco"><canvas id="c" width="256" height="192"></canvas></div>
-<div id="ayuda">Flechas/WASD: mover · Espacio: espada · Shift: correr · Enter: reiniciar</div>
+<div id="ayuda">Flechas/WASD: mover · Espacio: espada / hablar · Shift: correr · Enter: reiniciar</div>
 
 <div id="tactil">
   <div id="cruz">
@@ -81,12 +81,13 @@ const PAL = {
   'o':'#c8792a','O':'#8a4f1a',
   'p':'#b84a8a'
 };
-function crearSprite(filas){
+function crearSprite(filas, extra){
+  const pal = extra ? {...PAL, ...extra} : PAL;
   const cv = document.createElement('canvas');
   cv.width = filas[0].length; cv.height = filas.length;
   const x = cv.getContext('2d');
   filas.forEach((f,j)=>[...f].forEach((ch,i)=>{
-    if (PAL[ch]) { x.fillStyle = PAL[ch]; x.fillRect(i,j,1,1); }
+    if (pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(i,j,1,1); }
   }));
   return cv;
 }
@@ -252,6 +253,18 @@ const fondo = document.createElement('canvas'); fondo.width=c.width; fondo.heigh
     x.fillStyle='#fff3a0'; x.fillRect(px+1,py,2,2);
     x.fillStyle='#f5c020'; x.fillRect(px+1,py+1,1,1);
   }
+  // Camino de tierra hacia el pueblo (borde derecho)
+  x.fillStyle='#8a6a3a'; x.fillRect(196,81,60,26);
+  x.fillStyle='#c8a46a'; x.fillRect(198,82,58,24);
+  for (let i=0;i<70;i++){
+    x.fillStyle = r()<0.5 ? '#b08850' : '#dcbc80';
+    x.fillRect(198+Math.floor(r()*56), 83+Math.floor(r()*22), 2, 1);
+  }
+  // Letrero con flecha
+  x.fillStyle='#1a1020'; x.fillRect(205,62,3,18); x.fillRect(196,58,22,10);
+  x.fillStyle='#8a4f1a'; x.fillRect(206,63,1,17);
+  x.fillStyle='#c8792a'; x.fillRect(197,59,20,8);
+  x.fillStyle='#1a1020'; x.fillRect(200,62,10,2); x.fillRect(210,61,1,4); x.fillRect(211,62,1,2);
 })();
 
 function crearArbol(){
@@ -303,10 +316,219 @@ const arboles=[], arbustos=[], rocas=[];
 const p = { x:120, y:90, w:10, h:10, vel:0.9, dir:'abajo', vida:6, vidaMax:6, est:100,
             atacando:0, inv:0, rupias:0, paso:0 };
 function lejosDelInicio(x,y){ return Math.hypot(x-p.x,y-p.y) > 40; }
-for (let i=0;i<9;i++){ const x=rand(0,COLS-2)*T, y=rand(0,ROWS-2)*T; if(lejosDelInicio(x,y)) arboles.push({x,y,w:28,h:20,ox:2,oy:10}); }
-for (let i=0;i<10;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y)) arbustos.push({x,y,w:14,h:12,ox:1,oy:3}); }
-for (let i=0;i<7;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y)) rocas.push({x,y,w:14,h:12,ox:1,oy:3}); }
+// Zona libre junto al camino al pueblo, para que nada lo tape
+const SALIDA = {x:c.width-64, y:54, w:64, h:70};
+function libreSalida(x,y,s){ return !solapa({x,y,w:s,h:s}, SALIDA); }
+for (let i=0;i<9;i++){ const x=rand(0,COLS-2)*T, y=rand(0,ROWS-2)*T; if(lejosDelInicio(x,y) && libreSalida(x,y,32)) arboles.push({x,y,w:28,h:20,ox:2,oy:10}); }
+for (let i=0;i<10;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y) && libreSalida(x,y,16)) arbustos.push({x,y,w:14,h:12,ox:1,oy:3}); }
+for (let i=0;i<7;i++){ const x=rand(1,COLS-2)*T, y=rand(1,ROWS-2)*T; if(lejosDelInicio(x,y) && libreSalida(x,y,16)) rocas.push({x,y,w:14,h:12,ox:1,oy:3}); }
 const solidos = [...arboles,...arbustos,...rocas];
+
+// ================= PUEBLO: LAGOS =================
+const ALDEANO = [
+"................",
+"....KKKKKKKK....",
+"...KHHHHHHHHK...",
+"..KHHHHHHHHHHK..",
+"..KKKKKKKKKKKK..",
+"...KssssssssK...",
+"...KsKssssKsK...",
+"...KssssssssK...",
+"....KssSSssK....",
+"...KKXXXXXXKK...",
+"..KsKXXXXXXKsK..",
+"..KsKXxXXxXKsK..",
+"...KKXXXXXXKK...",
+"....KxxxxxxK....",
+"....KoK..KoK....",
+"....KKK..KKK...."
+];
+function crearAldeano(H,X,xo){ return crearSprite(ALDEANO, {H, X, x:xo}); }
+
+function crearCasa(techo, techoOsc, cura){
+  const cv = document.createElement('canvas'); cv.width=48; cv.height=40;
+  const x = cv.getContext('2d');
+  // paredes
+  x.fillStyle='#1a1020'; x.fillRect(4,16,40,24);
+  x.fillStyle='#e8d8b0'; x.fillRect(5,17,38,22);
+  x.fillStyle='#c8b48a'; x.fillRect(5,35,38,4);
+  x.fillStyle='#8a4f1a'; x.fillRect(5,17,2,22); x.fillRect(41,17,2,22);
+  // techo
+  for (let j=0;j<18;j++){
+    const m = Math.max(0,14-j);
+    x.fillStyle='#1a1020'; x.fillRect(m,j,48-2*m,1);
+    if (j>0 && j<17){ x.fillStyle = (j%4===0) ? techoOsc : techo; x.fillRect(m+1,j,46-2*m,1); }
+  }
+  x.fillStyle='rgba(255,255,255,.35)'; x.fillRect(14,1,20,1);
+  // puerta
+  x.fillStyle='#1a1020'; x.fillRect(19,26,10,14);
+  x.fillStyle='#8a4f1a'; x.fillRect(20,27,8,13);
+  x.fillStyle='#5a3210'; x.fillRect(23,27,2,13);
+  x.fillStyle='#f5d84a'; x.fillRect(26,33,1,1);
+  // ventanas
+  [9,33].forEach(wx=>{
+    x.fillStyle='#1a1020'; x.fillRect(wx-1,22,8,8);
+    x.fillStyle='#8fd0f0'; x.fillRect(wx,23,6,6);
+    x.fillStyle='#cfefff'; x.fillRect(wx,23,2,2);
+    x.fillStyle='#8a4f1a'; x.fillRect(wx+3,23,1,6); x.fillRect(wx,26,6,1);
+  });
+  // letrero de curandero con corazon
+  if (cura){
+    x.fillStyle='#1a1020'; x.fillRect(16,17,16,8);
+    x.fillStyle='#c8792a'; x.fillRect(17,18,14,6);
+    x.fillStyle='#d83a2a';
+    x.fillRect(21,19,2,1); x.fillRect(25,19,2,1);
+    x.fillRect(21,20,6,1); x.fillRect(22,21,4,1); x.fillRect(23,22,2,1);
+  }
+  return cv;
+}
+
+function crearFuente(){
+  const cv = document.createElement('canvas'); cv.width=32; cv.height=32;
+  const x = cv.getContext('2d');
+  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
+  blob(16,22,15,9,'#1a1020'); blob(16,22,14,8,'#9a9aa6'); blob(16,21,11,5,'#1a1020');
+  blob(16,21,10,4,'#3a8fd0'); blob(12,20,4,1.5,'#8fd0f0');
+  x.fillStyle='#1a1020'; x.fillRect(14,8,4,14);
+  x.fillStyle='#b8b8c2'; x.fillRect(15,9,2,12);
+  blob(16,8,7,3,'#1a1020'); blob(16,8,6,2,'#9a9aa6'); blob(16,7,4,1,'#8fd0f0');
+  return cv;
+}
+
+// Letrero de madera con texto (en un poste)
+function crearLetrero(texto){
+  const cv = document.createElement('canvas'); cv.width=40; cv.height=26;
+  const x = cv.getContext('2d');
+  x.fillStyle='#1a1020'; x.fillRect(17,12,6,14);
+  x.fillStyle='#8a4f1a'; x.fillRect(18,12,4,13);
+  x.fillStyle='#c8792a'; x.fillRect(18,12,1,13);
+  x.fillStyle='#1a1020'; x.fillRect(0,0,40,14);
+  x.fillStyle='#c8792a'; x.fillRect(1,1,38,12);
+  x.fillStyle='#e0a050'; x.fillRect(1,1,38,1);
+  x.fillStyle='#8a4f1a'; x.fillRect(1,12,38,1);
+  x.font='bold 8px monospace'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle='#3a1f0a'; x.fillText(texto, 20, 7.5);
+  return cv;
+}
+
+// Panaderia "El Molinito"
+function crearPanaderia(){
+  const cv = document.createElement('canvas'); cv.width=64; cv.height=48;
+  const x = cv.getContext('2d');
+  // chimenea
+  x.fillStyle='#1a1020'; x.fillRect(45,0,8,12);
+  x.fillStyle='#a04a3a'; x.fillRect(46,1,6,11);
+  // techo de tejas
+  for (let j=2;j<20;j++){
+    const m = Math.max(0, 19-j);
+    x.fillStyle='#1a1020'; x.fillRect(m,j,64-2*m,1);
+    if (j>2 && j<19){ x.fillStyle = (j%3===0) ? '#8a4f1a' : '#c8792a'; x.fillRect(m+1,j,62-2*m,1); }
+  }
+  // paredes
+  x.fillStyle='#1a1020'; x.fillRect(4,19,56,29);
+  x.fillStyle='#f0d8a8'; x.fillRect(5,20,54,27);
+  x.fillStyle='#d8bc88'; x.fillRect(5,44,54,3);
+  // letrero
+  x.fillStyle='#1a1020'; x.fillRect(2,20,60,11);
+  x.fillStyle='#5a3210'; x.fillRect(3,21,58,9);
+  x.font='bold 8px monospace'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle='#ffe8a0'; x.fillText('El Molinito', 32, 25.5, 56);
+  // toldo a rayas
+  for (let i=0;i<14;i++){ x.fillStyle = i%2 ? '#ffffff' : '#d83a2a'; x.fillRect(4+i*4,31,4,4); }
+  x.fillStyle='#1a1020'; x.fillRect(4,35,56,1);
+  // puerta
+  x.fillStyle='#1a1020'; x.fillRect(26,36,12,12);
+  x.fillStyle='#8a4f1a'; x.fillRect(27,37,10,11);
+  x.fillStyle='#cfefff'; x.fillRect(29,38,6,4);
+  x.fillStyle='#f5d84a'; x.fillRect(35,43,1,1);
+  // vitrinas con pan
+  [8,42].forEach(wx=>{
+    x.fillStyle='#1a1020'; x.fillRect(wx-1,36,16,9);
+    x.fillStyle='#cfe6f2'; x.fillRect(wx,37,14,7);
+    x.fillStyle='#8a4f1a'; x.fillRect(wx,42,14,2);
+    x.fillStyle='#c8792a'; x.fillRect(wx+1,40,5,2); x.fillRect(wx+8,39,5,3);
+    x.fillStyle='#f5c070'; x.fillRect(wx+2,40,2,1); x.fillRect(wx+9,39,3,1);
+  });
+  return cv;
+}
+
+function crearFondoPueblo(){
+  const cv = document.createElement('canvas'); cv.width=c.width; cv.height=c.height;
+  const x = cv.getContext('2d'); const r = rnd(21);
+  x.fillStyle='#4c9a3a'; x.fillRect(0,0,c.width,c.height);
+  for (let i=0;i<700;i++){
+    x.fillStyle = r()<0.5 ? '#5aad45' : '#3f8530';
+    x.fillRect(Math.floor(r()*c.width), Math.floor(r()*c.height), 1, 2);
+  }
+  // empedrado
+  const empedrar = (rx,ry,rw,rh)=>{
+    x.fillStyle='#7a6a52'; x.fillRect(rx,ry,rw,rh);
+    for (let yy=ry; yy<ry+rh; yy+=4){
+      const off = ((yy-ry)/4)%2 ? 3 : 0;
+      for (let xx=rx-off; xx<rx+rw; xx+=6){
+        const x0=Math.max(xx+1,rx), x1=Math.min(xx+6,rx+rw);
+        if (x1<=x0) continue;
+        x.fillStyle = r()<0.5 ? '#c2b296' : '#b0a084';
+        x.fillRect(x0, yy+1, x1-x0, Math.min(3, ry+rh-yy-1));
+      }
+    }
+  };
+  empedrar(8,62,240,122);
+  empedrar(0,78,8,36);
+  // jardin con flores
+  x.fillStyle='#2f6f28'; x.fillRect(84,146,88,32);
+  x.fillStyle='#4c9a3a'; x.fillRect(85,147,86,30);
+  const flores = ['#ff7a9a','#fff3a0','#b8a0ff','#ffffff'];
+  for (let i=0;i<22;i++){
+    const px=87+Math.floor(r()*80), py=149+Math.floor(r()*25);
+    x.fillStyle=flores[Math.floor(r()*flores.length)]; x.fillRect(px,py,2,2);
+    x.fillStyle='#f5c020'; x.fillRect(px,py,1,1);
+  }
+  return cv;
+}
+
+const pueblo = {
+  fondo: crearFondoPueblo(),
+  fuente: {x:112, y:84, w:28, h:16, ox:2, oy:12, spr:crearFuente()},
+  casas: [
+    {x:20,  y:26,  spr:crearCasa('#3a5fd0','#1e2f7a')},
+    {x:184, y:26,  spr:crearCasa('#d83a2a','#8f1f1a', true)},
+    {x:20,  y:134, spr:crearCasa('#2f8f2f','#1f5a24')}
+  ].map(o=>({...o, w:40, h:20, ox:4, oy:18}))
+   .concat([{x:180, y:128, spr:crearPanaderia(), w:56, h:24, ox:4, oy:22, humo:true}]),
+  letreros: [{x:72, y:48, spr:crearLetrero('Lagos'), w:8, h:6, ox:16, oy:20}],
+  arbustos: [{x:100,y:156},{x:140,y:156}].map(o=>({...o, w:14, h:12, ox:1, oy:3})),
+  npcs: [
+    { nombre:'Bruno, el guardia', x:10, y:60, spr:crearAldeano('#6a6a78','#d83a2a','#8f1f1a'),
+      frases:['¡Bienvenido a Lagos, viajero!',
+              'Aquí no entran los monstruos. Descansa tranquilo.'] },
+    { nombre:'Tomás, el curandero', x:203, y:68, spr:crearAldeano('#8a4f1a','#e8dcc0','#a08a60'),
+      frases:()=>{
+        if (p.vida >= p.vidaMax) return ['Soy Tomás, el curandero del pueblo.',
+                                         'Si te hieren, te curo por completo por 5 gemas.'];
+        if (p.rupias < 5) return ['Uy, estás herido, amigo...',
+                                  'Pero la cura cuesta 5 gemas. Vuelve cuando las tengas.'];
+        p.rupias -= 5; p.vida = p.vidaMax; chispas(p.x+5,p.y+5,'#ff9ab0');
+        return ['¡Listo! Te curé todas las heridas.', 'Gracias por las 5 gemas. ¡Cuídate allá afuera!'];
+      } },
+    { nombre:'Doña Rosa', x:64, y:116, spr:crearAldeano('#e8e8f0','#b84a8a','#7a2a5a'), anda:true, vel:0.25, radio:24,
+      frases:['Ay, esos bichos rojos del campo escupen piedras...',
+              'Si te lastiman, ve con Tomás. Su casa es la del techo rojo.'] },
+    { nombre:'Lía', x:164, y:118, spr:crearAldeano('#f5d84a','#3a8fd0','#1e5a8f'), anda:true, vel:0.45, radio:30,
+      frases:['¿Viste la fuente? ¡Dicen que trae buena suerte!',
+              'Cuando sea grande voy a tener mi propia espada.'] },
+    { nombre:'Carmen, la panadera', x:224, y:178, spr:crearAldeano('#ffffff','#f0a050','#b06a20'),
+      frases:()=>{
+        if (p.vida >= p.vidaMax) return ['¡Bienvenido a El Molinito!',
+                                         'Mi pan recién horneado te devuelve 2 corazones. Cuesta 2 gemas.'];
+        if (p.rupias < 2) return ['Hmm, huele rico, ¿verdad?',
+                                  'Un pan cuesta 2 gemas. Vuelve cuando tengas.'];
+        p.rupias -= 2; p.vida = Math.min(p.vidaMax, p.vida+2); chispas(p.x+5,p.y+5,'#f5c070');
+        return ['¡Aquí tienes un pan calientito!', 'Recuperaste 2 corazones. ¡Buen provecho!'];
+      } }
+  ].map(n=>({w:10, h:10, ox:0, oy:0, dir:-1, t:rand(20,80), paso:0, anda:false, vel:0, radio:0, ...n, cx:n.x, cy:n.y}))
+};
+pueblo.solidos = [...pueblo.casas, pueblo.fuente, ...pueblo.arbustos, ...pueblo.letreros, ...pueblo.npcs];
 
 // ================= ENTRADA: TECLADO =================
 const keys = {};
@@ -329,9 +551,11 @@ document.querySelectorAll('.btn').forEach(b => {
 // Tocar la pantalla cuando termina el juego reinicia
 c.addEventListener('pointerdown', () => { if (fin) location.reload(); });
 
-function choca(x,y,w,h){
+let escena = 'campo';   // 'campo' o 'pueblo'
+function choca(x,y,w,h,ignorar){
   if (x<0||y<0||x+w>c.width||y+h>c.height) return true;
-  return solidos.some(s => x < s.x+s.ox+s.w && x+w > s.x+s.ox && y < s.y+s.oy+s.h && y+h > s.y+s.oy);
+  const lista = escena==='pueblo' ? pueblo.solidos : solidos;
+  return lista.some(s => s!==ignorar && x < s.x+s.ox+s.w && x+w > s.x+s.ox && y < s.y+s.oy+s.h && y+h > s.y+s.oy);
 }
 function solapa(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
 
@@ -355,9 +579,64 @@ function chispas(x,y,col){ for(let i=0;i<8;i++) particulas.push({x,y,dx:(Math.ra
 let fin = false;
 function dano(){ p.vida--; p.inv=70; chispas(p.x+5,p.y+5,'#ff5050'); if (p.vida<=0) fin='perdiste'; }
 
+// ================= ESCENAS, ALDEANOS Y DIALOGOS =================
+let dialogo = null, cartel = null, fundido = 0;
+let espAntes = false, esperarSoltar = false;
+const CAMINO_Y1 = 72, CAMINO_Y2 = 116;   // franja del camino entre campo y pueblo
+
+function enCamino(){ return p.y >= CAMINO_Y1 && p.y + p.h <= CAMINO_Y2; }
+function entrar(dest){
+  escena = dest; balas.length = 0; particulas.length = 0; fundido = 14; p.atacando = 0;
+  p.y = Math.min(Math.max(p.y, CAMINO_Y1+2), CAMINO_Y2-p.h-2);
+  if (dest==='pueblo'){ p.x = 3; cartel = {texto:'Lagos', t:150}; }
+  else p.x = c.width - p.w - 3;
+}
+function revisarSalida(dx){
+  if (escena==='campo' && dx>0 && p.x+p.w >= c.width-2 && enCamino()) entrar('pueblo');
+  else if (escena==='pueblo' && dx<0 && p.x <= 2 && enCamino()) entrar('campo');
+}
+function npcCercano(){
+  let mejor=null, dMin=20;
+  pueblo.npcs.forEach(n=>{ const d=Math.hypot(n.x-p.x, n.y-p.y); if (d<dMin){ dMin=d; mejor=n; } });
+  return mejor;
+}
+function hablar(n){
+  const lineas = typeof n.frases==='function' ? n.frases() : n.frases;
+  dialogo = {nombre:n.nombre, lineas, i:0};
+}
+function actualizarNPCs(){
+  pueblo.npcs.forEach(n=>{
+    if (!n.anda) return;
+    n.t--;
+    if (n.t<=0){ n.dir = Math.random()<0.4 ? -1 : rand(0,3); n.t = rand(40,110); }
+    if (n.dir<0) return;
+    const d = DIRS[n.dir], nx = n.x+d[0]*n.vel, ny = n.y+d[1]*n.vel;
+    if (Math.hypot(nx-n.cx, ny-n.cy) > n.radio || choca(nx,ny,n.w,n.h,n) || solapa({x:nx,y:ny,w:n.w,h:n.h}, p)) n.t = 0;
+    else { n.x = nx; n.y = ny; n.paso += 0.12; }
+  });
+}
+function actualizarParticulas(){
+  for (let i=particulas.length-1;i>=0;i--){
+    const q=particulas[i]; q.x+=q.dx; q.y+=q.dy; q.vida--; if(q.vida<=0) particulas.splice(i,1);
+  }
+}
+
 // ================= ACTUALIZAR =================
 function actualizar(){
   if (fin){ if (keys['enter']) location.reload(); return; }
+
+  // Espacio "recien presionado" (para hablar y pasar dialogos)
+  const espNuevo = !!keys[' '] && !espAntes;
+  espAntes = !!keys[' '];
+  if (!keys[' ']) esperarSoltar = false;
+  if (fundido>0) fundido--;
+  if (cartel && --cartel.t<=0) cartel = null;
+  actualizarParticulas();
+
+  if (dialogo){
+    if (espNuevo && ++dialogo.i >= dialogo.lineas.length){ dialogo = null; esperarSoltar = true; }
+    return;
+  }
 
   let dx=0, dy=0;
   if (keys['arrowleft'] ||keys['a']) { dx=-1; p.dir='izq'; }
@@ -372,10 +651,17 @@ function actualizar(){
   if (!choca(p.x+dx*v,p.y,p.w,p.h)) p.x+=dx*v;
   if (!choca(p.x,p.y+dy*v,p.w,p.h)) p.y+=dy*v;
   if (dx||dy) p.paso+=corre?0.3:0.18;
+  revisarSalida(dx);
 
-  if (keys[' '] && p.atacando===0 && p.est>=10){ p.atacando=16; p.est-=10; }
+  if (escena==='pueblo'){
+    actualizarNPCs();
+    if (espNuevo){ const n = npcCercano(); if (n){ hablar(n); return; } }
+  }
+
+  if (keys[' '] && !esperarSoltar && p.atacando===0 && p.est>=10){ p.atacando=16; p.est-=10; }
   if (p.atacando>0){
     p.atacando--;
+    if (escena==='campo'){
     const e = espadaRect();
     enemigos.forEach(en=>{
       if (en.golpe>0) return;
@@ -384,8 +670,10 @@ function actualizar(){
         const d = DIRS.find(d=>d[2]===p.dir); en.x+=d[0]*8; en.y+=d[1]*8;
       }
     });
+    }
   }
   if (p.inv>0) p.inv--;
+  if (escena!=='campo') return;   // en el pueblo no hay enemigos
 
   for (let i=enemigos.length-1;i>=0;i--){
     const en = enemigos[i];
@@ -418,9 +706,6 @@ function actualizar(){
       if (drops[i].tipo==='corazon') p.vida=Math.min(p.vidaMax,p.vida+1); else p.rupias++;
       drops.splice(i,1);
     }
-  }
-  for (let i=particulas.length-1;i>=0;i--){
-    const q=particulas[i]; q.x+=q.dx; q.y+=q.dy; q.vida--; if(q.vida<=0) particulas.splice(i,1);
   }
   if (enemigos.length===0) fin='ganaste';
 }
@@ -468,7 +753,82 @@ function dibujarHUD(){
   ctx.fillStyle='#fff'; ctx.font='8px monospace'; ctx.fillText('x'+p.rupias,37,22);
 }
 
-function dibujar(){
+function dibujarPueblo(){
+  ctx.drawImage(pueblo.fondo,0,0);
+  const cosas = [];
+  pueblo.casas.forEach(o=>cosas.push({y:o.y+o.spr.height,f:()=>{
+    sombra(o.x+4, o.y+o.spr.height-2, o.spr.width-8); ctx.drawImage(o.spr,o.x,o.y);
+    if (o.humo){   // humito saliendo de la chimenea del horno
+      const t = Date.now()/120;
+      for (let i=0;i<3;i++){
+        const k = (t+i*6)%18;
+        ctx.fillStyle = 'rgba(230,230,240,'+(1-k/18)+')';
+        ctx.fillRect(Math.floor(o.x+48+Math.sin(k/3+i)*2), Math.floor(o.y-1-k), 3, 3);
+      }
+    }
+  }}));
+  pueblo.letreros.forEach(o=>cosas.push({y:o.y+26,f:()=>{ sombra(o.x+14,o.y+25,12); ctx.drawImage(o.spr,o.x,o.y); }}));
+  const fu = pueblo.fuente;
+  cosas.push({y:fu.y+30,f:()=>{
+    ctx.drawImage(fu.spr,fu.x,fu.y);
+    // gotas cayendo de la fuente
+    const t = Date.now()/90;
+    ctx.fillStyle='#cfefff';
+    for (let i=0;i<4;i++){
+      const k = (t+i*2.5)%10, lado = i%2 ? 1 : -1;
+      ctx.fillRect(Math.floor(fu.x+16+lado*(3+k*0.6)), Math.floor(fu.y+8+k*1.2), 1, 1);
+    }
+  }});
+  pueblo.arbustos.forEach(o=>cosas.push({y:o.y+16,f:()=>{ sombra(o.x+1,o.y+13,14); ctx.drawImage(SPR_ARBUSTO,o.x,o.y); }}));
+  pueblo.npcs.forEach(n=>cosas.push({y:n.y+10,f:()=>{
+    const bob = (Math.floor(n.paso)%2===1) ? -1 : 0;
+    sombra(n.x-1,n.y+11,12);
+    ctx.drawImage(n.spr, Math.floor(n.x-3), Math.floor(n.y-5+bob));
+  }}));
+  cosas.push({y:p.y+10,f:dibujarLink});
+  cosas.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
+
+  // Globito "!" sobre el aldeano con el que puedes hablar
+  const n = !dialogo && npcCercano();
+  if (n){
+    const bx=Math.floor(n.x+1), by=Math.floor(n.y-16+Math.sin(Date.now()/200));
+    ctx.fillStyle='#1a1020'; ctx.fillRect(bx-1,by-1,10,10);
+    ctx.fillStyle='#fff'; ctx.fillRect(bx,by,8,8);
+    ctx.fillStyle='#1a1020'; ctx.fillRect(bx+3,by+1,2,4); ctx.fillRect(bx+3,by+6,2,1);
+  }
+}
+
+function partirTexto(txt, ancho){
+  const palabras = txt.split(' '), lineas = []; let actual = '';
+  palabras.forEach(w=>{
+    const prueba = actual ? actual+' '+w : w;
+    if (ctx.measureText(prueba).width > ancho && actual){ lineas.push(actual); actual = w; }
+    else actual = prueba;
+  });
+  if (actual) lineas.push(actual);
+  return lineas;
+}
+function dibujarDialogo(){
+  const bx=6, by=c.height-50, bw=c.width-12, bh=44;
+  ctx.fillStyle='rgba(10,8,20,.92)'; ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
+  ctx.font='8px monospace';
+  ctx.fillStyle='#f5d84a'; ctx.fillText(dialogo.nombre, bx+6, by+11);
+  ctx.fillStyle='#fff';
+  partirTexto(dialogo.lineas[dialogo.i], bw-14).slice(0,3).forEach((l,i)=>ctx.fillText(l, bx+6, by+22+i*9));
+  if (Math.floor(Date.now()/300)%2){ ctx.fillStyle='#f5d84a'; ctx.fillRect(bx+bw-11,by+bh-8,5,2); ctx.fillRect(bx+bw-10,by+bh-6,3,1); }
+}
+function dibujarCartel(){
+  ctx.globalAlpha = Math.min(1, cartel.t/30);
+  ctx.font='bold 10px monospace'; ctx.textAlign='center';
+  const w = ctx.measureText(cartel.texto).width + 16;
+  ctx.fillStyle='rgba(10,8,20,.85)'; ctx.fillRect(c.width/2-w/2, 30, w, 16);
+  ctx.strokeStyle='#f5d84a'; ctx.strokeRect(c.width/2-w/2+.5, 30.5, w-1, 15);
+  ctx.fillStyle='#fff'; ctx.fillText(cartel.texto, c.width/2, 41);
+  ctx.textAlign='left'; ctx.globalAlpha=1;
+}
+
+function dibujarCampo(){
   ctx.drawImage(fondo,0,0);
   const cosas = [];
   rocas.forEach(o=>cosas.push({y:o.y+16,f:()=>ctx.drawImage(SPR_ROCA,o.x,o.y)}));
@@ -482,10 +842,17 @@ function dibujar(){
   cosas.push({y:p.y+10,f:dibujarLink});
   balas.forEach(b=>cosas.push({y:b.y,f:()=>{ ctx.fillStyle='#1a1020'; ctx.fillRect(b.x-1,b.y-1,6,6); ctx.fillStyle='#c8792a'; ctx.fillRect(b.x,b.y,4,4); ctx.fillStyle='#ffd08a'; ctx.fillRect(b.x,b.y,2,2); }}));
   cosas.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
+}
+
+function dibujar(){
+  if (escena==='pueblo') dibujarPueblo(); else dibujarCampo();
 
   particulas.forEach(q=>{ ctx.fillStyle=q.col; ctx.globalAlpha=q.vida/20; ctx.fillRect(q.x,q.y,2,2); });
   ctx.globalAlpha=1;
   dibujarHUD();
+  if (cartel) dibujarCartel();
+  if (dialogo) dibujarDialogo();
+  if (fundido>0){ ctx.fillStyle='rgba(0,0,0,'+(fundido/14)+')'; ctx.fillRect(0,0,c.width,c.height); }
 
   if (fin){
     ctx.fillStyle='rgba(10,8,20,.75)'; ctx.fillRect(0,0,c.width,c.height);
