@@ -61,10 +61,11 @@ const COLS = 16, ROWS = 12;
 // Escala el canvas en numeros enteros para que el pixel art se vea nitido
 function ajustar(){
   const marco = document.getElementById('marco');
-  const aw = marco.clientWidth - 8, ah = marco.clientHeight - 8;
-  let k = Math.max(1, Math.floor(Math.min(aw / c.width, ah / c.height)));
-  // si no cabe entero (celular chico), usar escala fraccionaria
-  if (c.width * k > aw || c.height * k > ah) k = Math.min(aw / c.width, ah / c.height);
+  const aw = marco.clientWidth - 6, ah = marco.clientHeight - 6;   // 6 = borde de la pantalla
+  // ocupar todo el espacio que haya (en el celular el juego llena el ancho).
+  // en pantallas grandes se redondea a un multiplo entero para que el pixel art se vea nitido.
+  let k = Math.min(aw / c.width, ah / c.height);
+  if (k >= 2) k = Math.floor(k);
   const w = (c.width * k) + 'px', h = (c.height * k) + 'px';
   [c, document.getElementById('g3d'), document.getElementById('pantalla')].forEach(el=>{ el.style.width = w; el.style.height = h; });
 }
