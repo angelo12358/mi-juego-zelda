@@ -269,7 +269,7 @@ const fondo = document.createElement('canvas'); fondo.width=c.width; fondo.heigh
 function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 const arboles=[], arbustos=[], rocas=[];
 const p = { x:120, y:90, w:10, h:10, vel:0.9, dir:'abajo', vida:6, vidaMax:6, est:100,
-            atacando:0, inv:0, rupias:0, paso:0 };
+            atacando:0, carga:-1, giro:0, inv:0, rupias:0, paso:0 };
 function lejosDelInicio(x,y){ return Math.hypot(x-p.x,y-p.y) > 40; }
 // Zona libre junto al camino al pueblo, para que nada lo tape
 const SALIDA = {x:c.width-64, y:54, w:64, h:70};
@@ -460,11 +460,38 @@ for (let i=0;i<5;i++){
   enemigos.push({x:ex,y:ey,w:12,h:12,vida:2,dir:rand(0,3),t:rand(30,90),disp:rand(80,200),golpe:0});
 }
 
-function espadaRect(){
-  if (p.dir==='arriba') return {x:p.x-1, y:p.y-12, w:6,  h:12};
-  if (p.dir==='abajo')  return {x:p.x+5, y:p.y+p.h-1, w:6, h:12};
-  if (p.dir==='izq')    return {x:p.x-12,y:p.y+3,  w:12, h:6};
-  return                       {x:p.x+p.w-1,y:p.y+3, w:12, h:6};
+// ================= ESPADA: TAJO Y REMOLINO =================
+// Toque de Espacio = tajo en arco. Mantener = cargar (la espada brilla).
+// Soltar con la carga llena = remolino: una vuelta completa que golpea todo alrededor.
+const T_TAJO = 14, T_GIRO = 22, T_CARGA = 45, LARGO_ESPADA = 19;
+const ANG_DIR = {der:0, abajo:Math.PI/2, izq:Math.PI, arriba:-Math.PI/2};
+// angulo de la espada en el plano del juego (x a la derecha, y hacia abajo)
+function anguloEspada(){
+  const base = ANG_DIR[p.dir];
+  if (p.giro>0) return base + (1 - p.giro/T_GIRO) * Math.PI*2;
+  if (p.atacando>0) return base - 1.4 + (1 - p.atacando/T_TAJO) * 2.8;
+  return base;   // cargando: espada al frente
+}
+function golpear(en, dano, dx, dy, aturdido){
+  en.vida -= dano; en.golpe = aturdido; chispas(en.x+6,en.y+6,'#ffffff');
+  const nx = en.x+dx*10, ny = en.y+dy*10;
+  if (!choca(nx,en.y,en.w,en.h)) en.x = nx;
+  if (!choca(en.x,ny,en.w,en.h)) en.y = ny;
+}
+function revisarGolpes(){
+  if (escena!=='campo') return;
+  const cx = p.x+p.w/2, cy = p.y+p.h/2;
+  if (p.giro>0){
+    enemigos.forEach(en=>{
+      if (en.golpe>0) return;
+      const ex = en.x+6-cx, ey = en.y+6-cy, d = Math.hypot(ex,ey) || 1;
+      if (d < LARGO_ESPADA+8) golpear(en, 2, ex/d, ey/d, T_GIRO+4);
+    });
+  } else if (p.atacando>0){
+    const a = anguloEspada(), base = ANG_DIR[p.dir];
+    const zonas = [9, LARGO_ESPADA].map(r=>({x:cx+Math.cos(a)*r-4, y:cy+Math.sin(a)*r-4, w:8, h:8}));
+    enemigos.forEach(en=>{ if (en.golpe<=0 && zonas.some(z=>solapa(z,en))) golpear(en, 1, Math.cos(base), Math.sin(base), 20); });
+  }
 }
 function chispas(x,y,col){ for(let i=0;i<8;i++) particulas.push({x,y,dx:(Math.random()-.5)*2,dy:(Math.random()-.5)*2,vida:20,col}); }
 
@@ -481,7 +508,7 @@ const MAPA = { campo:{der:'pueblo'}, pueblo:{izq:'campo', der:'rio'}, rio:{izq:'
 const NOMBRES = { pueblo:'Lagos', rio:'La Cascada' };
 // lado = por donde aparece el jugador en el nuevo escenario
 function entrar(dest, lado='izq'){
-  escena = dest; balas.length = 0; particulas.length = 0; fundido = 14; p.atacando = 0;
+  escena = dest; balas.length = 0; particulas.length = 0; fundido = 14; p.atacando = 0; p.carga = -1; p.giro = 0;
   p.y = Math.min(Math.max(p.y, CAMINO_Y1+2), CAMINO_Y2-p.h-2);
   p.x = lado==='izq' ? 3 : c.width - p.w - 3;
   cartel = NOMBRES[dest] ? {texto:NOMBRES[dest], t:150} : null;
@@ -536,15 +563,17 @@ function actualizar(){
   }
 
   let dx=0, dy=0;
+  const dirAntes = p.dir;
   if (keys['arrowleft'] ||keys['a']) { dx=-1; p.dir='izq'; }
   if (keys['arrowright']||keys['d']) { dx=1;  p.dir='der'; }
   if (keys['arrowup']   ||keys['w']) { dy=-1; p.dir='arriba'; }
   if (keys['arrowdown'] ||keys['s']) { dy=1;  p.dir='abajo'; }
   if (dx&&dy){ dx*=0.7; dy*=0.7; }
+  if (p.carga>=0 || p.giro>0) p.dir = dirAntes;   // cargando o girando: mira siempre al mismo lado
   let v = p.vel;
   const corre = keys['shift'] && p.est>0 && (dx||dy);
   if (corre){ v*=1.7; p.est-=1.2; } else p.est=Math.min(100,p.est+0.6);
-  if (p.atacando>0) v*=0.3;
+  if (p.atacando>0 || p.giro>0) v*=0.3; else if (p.carga>=0) v*=0.55;
   if (!choca(p.x+dx*v,p.y,p.w,p.h)) p.x+=dx*v;
   if (!choca(p.x,p.y+dy*v,p.w,p.h)) p.y+=dy*v;
   if (dx||dy) p.paso+=corre?0.3:0.18;
@@ -561,20 +590,20 @@ function actualizar(){
     if (espNuevo){ const n = npcCercano(); if (n){ hablar(n); return; } }
   }
 
-  if (keys[' '] && !esperarSoltar && p.atacando===0 && p.est>=10){ p.atacando=16; p.est-=10; }
-  if (p.atacando>0){
-    p.atacando--;
-    if (escena==='campo'){
-    const e = espadaRect();
-    enemigos.forEach(en=>{
-      if (en.golpe>0) return;
-      if (solapa(e,en)){
-        en.vida--; en.golpe=20; chispas(en.x+6,en.y+6,'#ffffff');
-        const d = DIRS.find(d=>d[2]===p.dir); en.x+=d[0]*8; en.y+=d[1]*8;
-      }
-    });
+  if (espNuevo && !esperarSoltar && p.atacando===0 && p.giro===0 && p.est>=10){
+    p.atacando = T_TAJO; p.est -= 10; p.carga = 0;
+  }
+  if (p.atacando>0) p.atacando--;
+  else if (p.giro>0) p.giro--;
+  else if (p.carga>=0){
+    if (keys[' ']){
+      if (p.carga < T_CARGA && ++p.carga===T_CARGA) chispas(p.x+5,p.y+5,'#bfe6ff');   // carga lista
+    } else {
+      if (p.carga>=T_CARGA && p.est>=15){ p.giro = T_GIRO; p.est -= 15; }
+      p.carga = -1;
     }
   }
+  revisarGolpes();
   if (p.inv>0) p.inv--;
   if (escena!=='campo') return;   // en el pueblo no hay enemigos
 
@@ -914,8 +943,18 @@ rio.arbustos.forEach(o=>grupoRio.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
 
 // ---------- personajes y objetos que se mueven ----------
 const linkObj = personaje(SPR_LINK.abajo);
-const espadaSpr = new THREE.Sprite(new THREE.SpriteMaterial({map:texCanvas(SPR_ESPADA.arriba), alphaTest:0.5, fog:false}));
-escena3d.add(linkObj, espadaSpr);
+// espada 3D: gira alrededor del jugador (tajo y remolino)
+const matHoja = new THREE.MeshStandardMaterial({color:'#e8eef5', emissive:'#000000', flatShading:true, roughness:0.35, metalness:0.3});
+const espada3d = new THREE.Group();
+espada3d.add(malla(new THREE.BoxGeometry(0.8,0.05,0.12), matHoja, 0.62,0,0));
+espada3d.add(malla(new THREE.ConeGeometry(0.075,0.16,4).rotateZ(-Math.PI/2), matHoja, 1.1,0,0));
+espada3d.add(malla(new THREE.BoxGeometry(0.08,0.09,0.42), '#f5d84a', 0.2,0,0));
+espada3d.add(malla(new THREE.BoxGeometry(0.2,0.07,0.07), '#8a4f1a', 0.07,0,0));
+// estela blanca que deja la espada al moverse
+const estela = new THREE.Mesh(new THREE.BufferGeometry(),
+  new THREE.MeshBasicMaterial({color:'#ffffff', transparent:true, opacity:0.45, depthWrite:false, side:THREE.DoubleSide, fog:false}));
+espada3d.scale.setScalar(1.15);
+escena3d.add(linkObj, espada3d, estela);
 
 pueblo.npcs.forEach(n=>{ n.obj = personaje(n.spr); grupoPueblo.add(n.obj); });
 const cvBurbuja = document.createElement('canvas'); cvBurbuja.width=10; cvBurbuja.height=10;
@@ -962,13 +1001,27 @@ function actualizar3d(){
   const piso = alturaPiso(p.x+5, p.y+8);
   linkObj.position.set(lx, piso, lz);
   linkObj.visible = !(p.inv>0 && Math.floor(p.inv/4)%2);
-  espadaSpr.visible = p.atacando>0;
-  if (p.atacando>0){
-    const cv = SPR_ESPADA[p.dir];
-    espadaSpr.material.map = texCanvas(cv);
-    espadaSpr.scale.set(cv.width*U*ESC, cv.height*U*ESC, 1);
-    const off = {arriba:[0,0.95,-0.5], abajo:[0,0.3,0.5], izq:[-0.7,0.5,0], der:[0.7,0.5,0]}[p.dir];
-    espadaSpr.position.set(lx+off[0], off[1]+piso, lz+off[2]);
+  const cargando = p.carga>=0 && p.atacando===0 && p.giro===0;
+  espada3d.visible = p.atacando>0 || p.giro>0 || cargando;
+  estela.visible = p.atacando>0 || p.giro>0;
+  if (espada3d.visible){
+    const a = anguloEspada(), yE = piso + 0.42, zc = wz(p.y+p.h/2);
+    espada3d.position.set(lx, yE, zc);
+    espada3d.rotation.set(0, -a, 0);
+    // brillo: sube mientras carga, parpadea azul cuando esta lista y durante el remolino
+    let brillo = 0;
+    if (cargando) brillo = p.carga>=T_CARGA ? (Math.floor(t/90)%2 ? 1 : 0.5) : p.carga/T_CARGA*0.35;
+    if (p.giro>0) brillo = 1;
+    matHoja.emissive.setRGB(0.25*brillo, 0.6*brillo, 1.0*brillo);
+    if (estela.visible){
+      const inicio = p.giro>0 ? ANG_DIR[p.dir] : ANG_DIR[p.dir]-1.4;
+      const barrido = Math.max(0.05, a - inicio);
+      estela.geometry.dispose();
+      estela.geometry = new THREE.RingGeometry(0.3, 1.35, 24, 1, -a, barrido).rotateX(-Math.PI/2);
+      estela.position.set(lx, yE, zc);
+      estela.material.color.set(p.giro>0 ? '#8fd8ff' : '#ffffff');
+      estela.material.opacity = p.giro>0 ? 0.75 : 0.6;
+    }
   }
 
   // camara: fija sobre la pantalla, con un pequeno seguimiento al jugador
