@@ -830,7 +830,7 @@ function pino3d(x, z){
   g.position.set(x,0,z); g.rotation.y = Math.random()*6; return g;
 }
 // montana de roca hecha de columnas de distinta altura, con pasto arriba
-function montana3d(grupo, rx, ry, rw, rh, alto, semilla, fijoX){
+function montana3d(grupo, rx, ry, rw, rh, alto, semilla, fijoX, sinGrietasX){
   const r = rnd(semilla);
   for (let x0=rx; x0<rx+rw; x0+=16){
     const ancho = Math.min(16, rx+rw-x0)*U, prof = rh*U;
@@ -839,7 +839,9 @@ function montana3d(grupo, rx, ry, rw, rh, alto, semilla, fijoX){
     const cx = wx(x0)+ancho/2, cz = wz(ry)+prof/2;
     grupo.add(malla(new THREE.BoxGeometry(ancho+0.02, h, prof), r()<0.5 ? '#8a6a52' : '#9a7a5e', cx, h/2, cz));
     grupo.add(malla(new THREE.BoxGeometry(ancho+0.06, 0.14, prof+0.06), '#5aad45', cx, h+0.05, cz));
-    if (r()<0.5) grupo.add(malla(new THREE.BoxGeometry(0.08, h*0.6, 0.05), '#6a4e3a', cx+(r()-0.5)*0.6, h*0.45, cz+prof/2+0.02));
+    const grieta = r()<0.5, gx = cx+(r()-0.5)*0.6;
+    const tapaCueva = sinGrietasX && wx(sinGrietasX[0]) < gx+0.1 && gx-0.1 < wx(sinGrietasX[1]);
+    if (grieta && !tapaCueva) grupo.add(malla(new THREE.BoxGeometry(0.08, h*0.6, 0.05), '#6a4e3a', gx, h*0.45, cz+prof/2+0.02));
     if (r()<0.6) grupo.add(malla(new THREE.DodecahedronGeometry(0.22+r()*0.2,0), '#7a5e48', cx+(r()-0.5)*0.7, 0.15, cz+prof/2+0.1));
   }
 }
@@ -862,7 +864,7 @@ bordeArboles(grupoRio, [{x:-9.1}], 13, false, false, wx(136));
 // montanas (5): arriba de lado a lado, y una mas grande a la derecha
 montana3d(grupoRio, -64, -40, 384, 74, 2.6, 21, [112,160]);
 montana3d(grupoRio, 156, -40, 148, 100, 3.1, 22);
-montana3d(grupoRio, 212, 60, 92, 44, 3.1, 23);
+montana3d(grupoRio, 212, 60, 92, 44, 3.1, 23, null, [rio.cueva.x-8, rio.cueva.x+rio.cueva.w+8]);
 montana3d(grupoRio, 244, 134, 60, 58, 1.4, 24);
 // cascada (8)
 const texCascada = texAgua('#5ad0f5', '#e6fbff'); texCascada.repeat.set(1, 1.5);
@@ -940,6 +942,12 @@ function sincronizar(lista, mapa, crear, actualizar, padre){
   });
 }
 
+// altura del piso en un punto (el puente esta un poco elevado sobre el rio)
+const ALTO_PUENTE = 0.24;
+function alturaPiso(x, y){
+  return (escena==='rio' && x >= 112 && x <= 160 && y >= 86 && y <= 112) ? ALTO_PUENTE : 0;
+}
+
 function actualizar3d(){
   const t = Date.now();
   grupoCampo.visible = escena==='campo';
@@ -951,7 +959,8 @@ function actualizar3d(){
   const ls = linkObj.userData.spr;
   ls.material.map = texCanvas(SPR_LINK[p.dir]);
   ls.position.y = (Math.floor(p.paso)%2===1) ? 0.06 : 0;
-  linkObj.position.set(lx, 0, lz);
+  const piso = alturaPiso(p.x+5, p.y+8);
+  linkObj.position.set(lx, piso, lz);
   linkObj.visible = !(p.inv>0 && Math.floor(p.inv/4)%2);
   espadaSpr.visible = p.atacando>0;
   if (p.atacando>0){
@@ -959,7 +968,7 @@ function actualizar3d(){
     espadaSpr.material.map = texCanvas(cv);
     espadaSpr.scale.set(cv.width*U*ESC, cv.height*U*ESC, 1);
     const off = {arriba:[0,0.95,-0.5], abajo:[0,0.3,0.5], izq:[-0.7,0.5,0], der:[0.7,0.5,0]}[p.dir];
-    espadaSpr.position.set(lx+off[0], off[1], lz+off[2]);
+    espadaSpr.position.set(lx+off[0], off[1]+piso, lz+off[2]);
   }
 
   // camara: fija sobre la pantalla, con un pequeno seguimiento al jugador
