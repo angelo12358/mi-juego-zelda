@@ -323,6 +323,7 @@ function crearFondoPueblo(){
   };
   empedrar(8,62,240,122);
   empedrar(0,78,8,36);
+  empedrar(248,78,8,36);
   // jardin con flores
   x.fillStyle='#2f6f28'; x.fillRect(84,146,88,32);
   x.fillStyle='#4c9a3a'; x.fillRect(85,147,86,30);
@@ -344,7 +345,8 @@ const pueblo = {
     {x:20,  y:134, techo:'#2f8f2f'}
   ].map(o=>({...o, w:40, h:28, ox:4, oy:10}))
    .concat([{x:180, y:128, panaderia:true, techo:'#c8792a', w:56, h:32, ox:4, oy:14}]),
-  letreros: [{x:72, y:48, texto:'Lagos', w:8, h:6, ox:16, oy:20}],
+  letreros: [{x:72, y:48, texto:'Lagos', w:8, h:6, ox:16, oy:20},
+             {x:216, y:44, texto:'Cascada →', w:8, h:6, ox:16, oy:20}],
   arbustos: [{x:100,y:156},{x:140,y:156}].map(o=>({...o, w:14, h:12, ox:1, oy:3})),
   npcs: [
     { nombre:'Bruno, el guardia', x:10, y:60, spr:crearAldeano('#6a6a78','#d83a2a','#8f1f1a'),
@@ -378,6 +380,48 @@ const pueblo = {
 };
 pueblo.solidos = [...pueblo.casas, pueblo.fuente, ...pueblo.arbustos, ...pueblo.letreros, ...pueblo.npcs];
 
+// ================= ESCENARIO: LA CASCADA =================
+// Montanas arriba, una cascada que baja a un rio, un puente de madera,
+// y un camino de tierra que lleva a una cueva en la montana de la derecha.
+function crearFondoRio(){
+  const cv = document.createElement('canvas'); cv.width=c.width; cv.height=c.height;
+  const x = cv.getContext('2d'); const r = rnd(33);
+  x.fillStyle='#4c9a3a'; x.fillRect(0,0,c.width,c.height);
+  for (let i=0;i<800;i++){
+    x.fillStyle = r()<0.5 ? '#5aad45' : '#3f8530';
+    x.fillRect(Math.floor(r()*c.width), Math.floor(r()*c.height), 1, 2);
+  }
+  for (let i=0;i<16;i++){
+    const px=Math.floor(r()*250), py=40+Math.floor(r()*150);
+    x.fillStyle='#fff3a0'; x.fillRect(px,py,2,2); x.fillStyle='#f5c020'; x.fillRect(px,py,1,1);
+  }
+  // camino de tierra
+  const tierra = (rx,ry,rw,rh)=>{
+    x.fillStyle='#c8a46a'; x.fillRect(rx,ry,rw,rh);
+    for (let i=0;i<rw*rh/30;i++){
+      x.fillStyle = r()<0.5 ? '#b08850' : '#dcbc80';
+      x.fillRect(rx+Math.floor(r()*(rw-2)), ry+Math.floor(r()*rh), 2, 1);
+    }
+  };
+  tierra(0,88,124,22); tierra(148,88,60,22); tierra(196,96,24,22); tierra(206,104,24,22); tierra(214,106,42,26);
+  // orillas y fondo del rio
+  x.fillStyle='#7a6a52'; x.fillRect(116,30,40,162);
+  x.fillStyle='#2a78b0'; x.fillRect(120,30,32,162);
+  return cv;
+}
+const rect = o=>({ox:0, oy:0, ...o});
+const rio = {
+  fondo: crearFondoRio(),
+  muros: [{x:0,y:0,w:256,h:34}, {x:156,y:0,w:100,h:60}, {x:212,y:0,w:44,h:104}, {x:244,y:134,w:12,h:58}].map(rect),
+  agua:  [{x:120,y:34,w:32,h:54}, {x:120,y:110,w:32,h:82}].map(rect),
+  arboles: [{x:36,y:34},{x:0,y:120},{x:24,y:132},{x:160,y:136},{x:190,y:146}].map(o=>({...o, w:28,h:20,ox:2,oy:10})),
+  pinos: [{x:70,y:30}].map(o=>({...o, w:20,h:14,ox:6,oy:16})),
+  roca: rect({x:90,y:52,w:26,h:18}),
+  arbustos: [{x:64,y:128},{x:40,y:170},{x:88,y:160},{x:186,y:68},{x:220,y:168}].map(o=>({...o, w:14,h:12,ox:1,oy:3})),
+  cueva: {x:220, y:98, w:30, h:14}   // entrada de la cueva (al tocarla sale un mensaje)
+};
+rio.solidos = [...rio.muros, ...rio.agua, ...rio.arboles, ...rio.pinos, rio.roca, ...rio.arbustos];
+
 // ================= ENTRADA: TECLADO =================
 const keys = {};
 addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault(); });
@@ -402,7 +446,7 @@ c.addEventListener('pointerdown', () => { if (fin) location.reload(); });
 let escena = 'campo';   // 'campo' o 'pueblo'
 function choca(x,y,w,h,ignorar){
   if (x<0||y<0||x+w>c.width||y+h>c.height) return true;
-  const lista = escena==='pueblo' ? pueblo.solidos : solidos;
+  const lista = escena==='pueblo' ? pueblo.solidos : escena==='rio' ? rio.solidos : solidos;
   return lista.some(s => s!==ignorar && x < s.x+s.ox+s.w && x+w > s.x+s.ox && y < s.y+s.oy+s.h && y+h > s.y+s.oy);
 }
 function solapa(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
@@ -433,15 +477,20 @@ let espAntes = false, esperarSoltar = false;
 const CAMINO_Y1 = 72, CAMINO_Y2 = 116;   // franja del camino entre campo y pueblo
 
 function enCamino(){ return p.y >= CAMINO_Y1 && p.y + p.h <= CAMINO_Y2; }
-function entrar(dest){
+const MAPA = { campo:{der:'pueblo'}, pueblo:{izq:'campo', der:'rio'}, rio:{izq:'pueblo'} };
+const NOMBRES = { pueblo:'Lagos', rio:'La Cascada' };
+// lado = por donde aparece el jugador en el nuevo escenario
+function entrar(dest, lado='izq'){
   escena = dest; balas.length = 0; particulas.length = 0; fundido = 14; p.atacando = 0;
   p.y = Math.min(Math.max(p.y, CAMINO_Y1+2), CAMINO_Y2-p.h-2);
-  if (dest==='pueblo'){ p.x = 3; cartel = {texto:'Lagos', t:150}; }
-  else p.x = c.width - p.w - 3;
+  p.x = lado==='izq' ? 3 : c.width - p.w - 3;
+  cartel = NOMBRES[dest] ? {texto:NOMBRES[dest], t:150} : null;
 }
 function revisarSalida(dx){
-  if (escena==='campo' && dx>0 && p.x+p.w >= c.width-2 && enCamino()) entrar('pueblo');
-  else if (escena==='pueblo' && dx<0 && p.x <= 2 && enCamino()) entrar('campo');
+  if (!enCamino()) return;
+  const salidas = MAPA[escena];
+  if (dx>0 && p.x+p.w >= c.width-2 && salidas.der) entrar(salidas.der, 'izq');
+  else if (dx<0 && p.x <= 2 && salidas.izq) entrar(salidas.izq, 'der');
 }
 function npcCercano(){
   let mejor=null, dMin=20;
@@ -500,6 +549,12 @@ function actualizar(){
   if (!choca(p.x,p.y+dy*v,p.w,p.h)) p.y+=dy*v;
   if (dx||dy) p.paso+=corre?0.3:0.18;
   revisarSalida(dx);
+  if (escena==='rio' && solapa(p, rio.cueva)){
+    p.y = rio.cueva.y + rio.cueva.h + 3;
+    dialogo = {nombre:'Cueva', lineas:['La cueva está muy oscura... no se ve nada.',
+                                       'Necesitarás una antorcha para entrar. (Próximamente)'], i:0};
+    return;
+  }
 
   if (escena==='pueblo'){
     actualizarNPCs();
@@ -716,14 +771,20 @@ function fuente3d(fu){
 }
 // arboles alrededor del borde para que el mundo no termine "en el aire".
 // "hueco" deja libre el camino entre el campo y el pueblo.
-function bordeArboles(grupo, hueco, semilla){
+function bordeArboles(grupo, huecos, semilla, conArriba=true, conDerecha=true, rioX=null){
   const r = rnd(semilla);
-  const libre = (x,z)=> hueco && Math.abs(x - hueco.x) < 1.6 && z > wz(CAMINO_Y1)-0.6 && z < wz(CAMINO_Y2)+0.6;
-  for (let x=-10.5; x<=10.5; x+=1.3) grupo.add(arbol3d(x + r()*0.4, -7.1 - r()*0.8, 0.95 + r()*0.3));
+  const libre = (x,z)=> huecos.some(h=>Math.abs(x - h.x) < 1.6) && z > wz(CAMINO_Y1)-0.6 && z < wz(CAMINO_Y2)+0.6;
+  if (conArriba) for (let x=-10.5; x<=10.5; x+=1.3) grupo.add(arbol3d(x + r()*0.4, -7.1 - r()*0.8, 0.95 + r()*0.3));
   for (let z=-6.5; z<=7.5; z+=1.3){
-    [-9.1, 9.1].forEach(x=>{ if (!libre(x,z)) grupo.add(arbol3d(x + (x<0?-1:1)*r()*0.5, z + r()*0.3, 0.9 + r()*0.3)); });
+    [-9.1, 9.1].forEach(x=>{
+      if (x>0 && !conDerecha) return;
+      if (!libre(x,z)) grupo.add(arbol3d(x + (x<0?-1:1)*r()*0.5, z + r()*0.3, 0.9 + r()*0.3));
+    });
   }
-  for (let x=-8; x<=8; x+=1.1) grupo.add(arbusto3d(x + r()*0.3, 6.6 + r()*0.3));
+  for (let x=-8; x<=8; x+=1.1){
+    if (rioX!==null && Math.abs(x - rioX) < 1.4) continue;   // no poner arbustos dentro del rio
+    grupo.add(arbusto3d(x + r()*0.3, 6.6 + r()*0.3));
+  }
 }
 
 // ---------- armar los dos escenarios ----------
@@ -749,15 +810,105 @@ arboles.forEach(o=>grupoCampo.add(arbol3d(wx(o.x+16), wz(o.y+20))));
 arbustos.forEach(o=>grupoCampo.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
 rocas.forEach(o=>grupoCampo.add(roca3d(wx(o.x+8), wz(o.y+9))));
 grupoCampo.add(letrero3d('Lagos →', wx(206), wz(70)));
-bordeArboles(grupoCampo, {x:9.1}, 5);
+bordeArboles(grupoCampo, [{x:9.1}], 5);
 
 grupoPueblo.add(suelo(pueblo.fondo));
 caminoFuera(grupoPueblo, -9.5, '#b0a084');
+caminoFuera(grupoPueblo, 9.5, '#b0a084');
 pueblo.casas.forEach(o=>grupoPueblo.add(casa3d(o)));
 grupoPueblo.add(fuente3d(pueblo.fuente));
 pueblo.letreros.forEach(o=>grupoPueblo.add(letrero3d(o.texto, wx(o.x+o.ox+o.w/2), wz(o.y+o.oy+o.h/2))));
 pueblo.arbustos.forEach(o=>grupoPueblo.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
-bordeArboles(grupoPueblo, {x:-9.1}, 9);
+bordeArboles(grupoPueblo, [{x:-9.1},{x:9.1}], 9);
+
+// ---------- La Cascada ----------
+function pino3d(x, z){
+  const g = new THREE.Group();
+  g.add(malla(new THREE.CylinderGeometry(0.11,0.15,0.7,6), '#8a4f1a', 0,0.35,0));
+  [[0.78,1.0,0.95,'#2f7f48'],[0.6,0.85,1.5,'#3a9a58'],[0.4,0.7,1.98,'#4cb068']].forEach(([rad,alto,y,col])=>
+    g.add(malla(new THREE.ConeGeometry(rad,alto,7), col, 0,y,0)));
+  g.position.set(x,0,z); g.rotation.y = Math.random()*6; return g;
+}
+// montana de roca hecha de columnas de distinta altura, con pasto arriba
+function montana3d(grupo, rx, ry, rw, rh, alto, semilla, fijoX){
+  const r = rnd(semilla);
+  for (let x0=rx; x0<rx+rw; x0+=16){
+    const ancho = Math.min(16, rx+rw-x0)*U, prof = rh*U;
+    const fijo = fijoX && x0+16 > fijoX[0] && x0 < fijoX[1];
+    const h = fijo ? alto : alto + r()*0.9 - 0.3;
+    const cx = wx(x0)+ancho/2, cz = wz(ry)+prof/2;
+    grupo.add(malla(new THREE.BoxGeometry(ancho+0.02, h, prof), r()<0.5 ? '#8a6a52' : '#9a7a5e', cx, h/2, cz));
+    grupo.add(malla(new THREE.BoxGeometry(ancho+0.06, 0.14, prof+0.06), '#5aad45', cx, h+0.05, cz));
+    if (r()<0.5) grupo.add(malla(new THREE.BoxGeometry(0.08, h*0.6, 0.05), '#6a4e3a', cx+(r()-0.5)*0.6, h*0.45, cz+prof/2+0.02));
+    if (r()<0.6) grupo.add(malla(new THREE.DodecahedronGeometry(0.22+r()*0.2,0), '#7a5e48', cx+(r()-0.5)*0.7, 0.15, cz+prof/2+0.1));
+  }
+}
+// textura de agua con rayitas, que se mueve para simular corriente
+function texAgua(base, rayas){
+  const cv = document.createElement('canvas'); cv.width=16; cv.height=64;
+  const x = cv.getContext('2d'); const r = rnd(4);
+  x.fillStyle=base; x.fillRect(0,0,16,64);
+  for (let i=0;i<26;i++){ x.fillStyle=rayas; x.fillRect(Math.floor(r()*15), Math.floor(r()*60), 1, 2+Math.floor(r()*5)); }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
+}
+
+const grupoRio = new THREE.Group();
+escena3d.add(grupoRio);
+grupoRio.add(suelo(rio.fondo));
+caminoFuera(grupoRio, -9.5, '#c8a46a');
+bordeArboles(grupoRio, [{x:-9.1}], 13, false, false, wx(136));
+// montanas (5): arriba de lado a lado, y una mas grande a la derecha
+montana3d(grupoRio, -64, -40, 384, 74, 2.6, 21, [112,160]);
+montana3d(grupoRio, 156, -40, 148, 100, 3.1, 22);
+montana3d(grupoRio, 212, 60, 92, 44, 3.1, 23);
+montana3d(grupoRio, 244, 134, 60, 58, 1.4, 24);
+// cascada (8)
+const texCascada = texAgua('#5ad0f5', '#e6fbff'); texCascada.repeat.set(1, 1.5);
+const cascada = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.62), new THREE.MeshBasicMaterial({map:texCascada, transparent:true, opacity:0.93}));
+cascada.position.set(wx(136), 1.31, wz(34)+0.06);
+grupoRio.add(cascada);
+grupoRio.add(malla(new THREE.BoxGeometry(2.1, 0.12, 0.3), '#5ad0f5', wx(136), 2.62, wz(34)));
+// rio (10)
+const texRio = texAgua('#3ab8e0', '#bff0ff'); texRio.repeat.set(1, 6);
+const rioAgua = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 13), new THREE.MeshBasicMaterial({map:texRio}));
+rioAgua.rotation.x = -Math.PI/2; rioAgua.position.set(wx(136), 0.05, wz(34)+6.5);
+grupoRio.add(rioAgua);
+// espuma donde cae la cascada
+const espuma = [];
+for (let i=0;i<9;i++){
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16,0), new THREE.MeshBasicMaterial({color:'#ffffff'}));
+  m.position.set(wx(122)+i*0.21, 0.12, wz(34)+0.2+(i%3)*0.18); espuma.push(m); grupoRio.add(m);
+}
+// puente de madera (9)
+(function(){
+  const z0 = wz(88), z1 = wz(110), zc = (z0+z1)/2, largo = z1-z0;
+  for (let i=0;i<9;i++)
+    grupoRio.add(malla(new THREE.BoxGeometry(0.33, 0.1, largo+0.1), i%2 ? '#a0642a' : '#8a5422', wx(114)+i*0.34+0.17, 0.18, zc));
+  [z0-0.05, z1+0.05].forEach(z=>{
+    grupoRio.add(malla(new THREE.BoxGeometry(3.2, 0.08, 0.08), '#6a3a14', wx(136), 0.6, z));
+    [-1.55, -0.5, 0.5, 1.55].forEach(dx=>grupoRio.add(malla(new THREE.CylinderGeometry(0.06,0.07,0.65,6), '#5a3210', wx(136)+dx, 0.32, z)));
+  });
+})();
+// cueva (6): arco oscuro en la montana de la derecha, con piedras alrededor
+(function(){
+  const s = new THREE.Shape();
+  s.moveTo(-0.9,0); s.lineTo(-0.9,0.75); s.absarc(0,0.75,0.9,Math.PI,0,true); s.lineTo(0.9,0); s.lineTo(-0.9,0);
+  const boca = new THREE.Mesh(new THREE.ShapeGeometry(s), new THREE.MeshBasicMaterial({color:'#0a0608'}));
+  const cx = wx(rio.cueva.x+rio.cueva.w/2), cz = wz(104)+0.03;
+  boca.position.set(cx, 0.01, cz); grupoRio.add(boca);
+  for (let i=0;i<=8;i++){
+    const a = Math.PI*i/8;
+    grupoRio.add(malla(new THREE.DodecahedronGeometry(0.2,0), '#6a5a50', cx+Math.cos(a)*1.0, 0.75+Math.sin(a)*1.0, cz+0.08));
+  }
+  [-1,1].forEach(l=>grupoRio.add(malla(new THREE.DodecahedronGeometry(0.22,0), '#6a5a50', cx+l*1.0, 0.3, cz+0.08)));
+})();
+// arboles (1), pino (2), roca grande (3), arbustos (4)
+rio.arboles.forEach(o=>grupoRio.add(arbol3d(wx(o.x+16), wz(o.y+20))));
+rio.pinos.forEach(o=>grupoRio.add(pino3d(wx(o.x+o.ox+o.w/2), wz(o.y+o.oy+o.h/2))));
+(function(){ const m = roca3d(wx(rio.roca.x+13), wz(rio.roca.y+9)); m.scale.set(2.0,1.5,1.4); m.position.y = 0.4; grupoRio.add(m); })();
+rio.arbustos.forEach(o=>grupoRio.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
 
 // ---------- personajes y objetos que se mueven ----------
 const linkObj = personaje(SPR_LINK.abajo);
@@ -793,6 +944,7 @@ function actualizar3d(){
   const t = Date.now();
   grupoCampo.visible = escena==='campo';
   grupoPueblo.visible = escena==='pueblo';
+  grupoRio.visible = escena==='rio';
 
   // jugador
   const lx = wx(p.x+5), lz = wz(p.y+10);
@@ -826,6 +978,10 @@ function actualizar3d(){
     }, (d,s)=>s.position.set(wx(d.x+5), 0.35+Math.sin(t/150+d.x)*0.08, wz(d.y+8)), grupoCampo);
     sincronizar(balas, mapBalas, ()=>malla(geoBala, '#c8792a', 0,0,0),
       (b,m)=>m.position.set(wx(b.x+2), 0.4, wz(b.y+4)), grupoCampo);
+  } else if (escena==='rio'){
+    texCascada.offset.y = (t/900) % 1;
+    texRio.offset.y = (t/2600) % 1;
+    espuma.forEach((m,i)=>{ const k = Math.sin(t/180 + i*1.7); m.scale.setScalar(0.8 + k*0.3); m.position.y = 0.12 + k*0.05; });
   } else {
     pueblo.npcs.forEach(n=>{
       n.obj.position.set(wx(n.x+5), 0, wz(n.y+10));
