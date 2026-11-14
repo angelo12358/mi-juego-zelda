@@ -9,7 +9,9 @@
   html, body { margin:0; height:100%; background:#14161c; overflow:hidden; font-family:monospace; color:#fff; }
   body { display:flex; flex-direction:column; align-items:center; justify-content:center; }
   #marco { position:relative; display:flex; align-items:center; justify-content:center; width:100%; flex:1; min-height:0; }
-  canvas { image-rendering:pixelated; border:3px solid #000; box-shadow:0 0 30px #000; background:#000; }
+  #pantalla { position:relative; border:3px solid #000; box-shadow:0 0 30px #000; background:#000; }
+  canvas { image-rendering:pixelated; display:block; }
+  #c { position:absolute; left:0; top:0; background:transparent; }
   #ayuda { font-size:12px; opacity:.7; padding:6px; text-align:center; }
 
   /* Controles tactiles: solo se muestran en pantallas tactiles */
@@ -31,7 +33,7 @@
 </style>
 </head>
 <body>
-<div id="marco"><canvas id="c" width="256" height="192"></canvas></div>
+<div id="marco"><div id="pantalla"><canvas id="g3d"></canvas><canvas id="c" width="256" height="192"></canvas></div></div>
 <div id="ayuda">Flechas/WASD: mover · Espacio: espada / hablar · Shift: correr · Enter: reiniciar</div>
 
 <div id="tactil">
@@ -47,6 +49,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
 <script>
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
@@ -62,8 +65,8 @@ function ajustar(){
   let k = Math.max(1, Math.floor(Math.min(aw / c.width, ah / c.height)));
   // si no cabe entero (celular chico), usar escala fraccionaria
   if (c.width * k > aw || c.height * k > ah) k = Math.min(aw / c.width, ah / c.height);
-  c.style.width  = (c.width  * k) + 'px';
-  c.style.height = (c.height * k) + 'px';
+  const w = (c.width * k) + 'px', h = (c.height * k) + 'px';
+  [c, document.getElementById('g3d'), document.getElementById('pantalla')].forEach(el=>{ el.style.width = w; el.style.height = h; });
 }
 addEventListener('resize', ajustar);
 addEventListener('orientationchange', () => setTimeout(ajustar, 150));
@@ -260,55 +263,7 @@ const fondo = document.createElement('canvas'); fondo.width=c.width; fondo.heigh
     x.fillStyle = r()<0.5 ? '#b08850' : '#dcbc80';
     x.fillRect(198+Math.floor(r()*56), 83+Math.floor(r()*22), 2, 1);
   }
-  // Letrero con flecha
-  x.fillStyle='#1a1020'; x.fillRect(205,62,3,18); x.fillRect(196,58,22,10);
-  x.fillStyle='#8a4f1a'; x.fillRect(206,63,1,17);
-  x.fillStyle='#c8792a'; x.fillRect(197,59,20,8);
-  x.fillStyle='#1a1020'; x.fillRect(200,62,10,2); x.fillRect(210,61,1,4); x.fillRect(211,62,1,2);
 })();
-
-function crearArbol(){
-  const cv = document.createElement('canvas'); cv.width=32; cv.height=32;
-  const x = cv.getContext('2d');
-  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
-  x.fillStyle='#1a1020'; x.fillRect(11,22,10,10);
-  x.fillStyle='#8a4f1a'; x.fillRect(12,22,8,9);
-  x.fillStyle='#c8792a'; x.fillRect(13,22,2,9);
-  x.fillStyle='#5a3210'; x.fillRect(18,22,2,9);
-  blob(16,13,15,13,'#0c2a14');
-  blob(16,13,14,12,'#1f6b2a');
-  blob(14,14,12,10,'#2f8f38');
-  blob(12,10,9,7,'#4cc050');
-  blob(10,8,5,4,'#8be06a');
-  x.fillStyle='#1a5a24'; x.fillRect(6,20,20,2);
-  x.fillStyle='#6fd45a'; [[8,12],[14,8],[20,11],[11,16],[18,16]].forEach(p=>x.fillRect(p[0],p[1],3,2));
-  x.fillStyle='#1f6b2a'; [[22,16],[6,18],[16,19]].forEach(p=>x.fillRect(p[0],p[1],3,2));
-  return cv;
-}
-const SPR_ARBOL = crearArbol();
-
-function crearArbusto(){
-  const cv = document.createElement('canvas'); cv.width=16; cv.height=16;
-  const x = cv.getContext('2d');
-  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
-  blob(8,9,8,6,'#0c2a14'); blob(8,9,7,5,'#2f8f38'); blob(6,7,4,3,'#6fd45a');
-  x.fillStyle='#1f6b2a'; x.fillRect(9,11,4,2);
-  return cv;
-}
-const SPR_ARBUSTO = crearArbusto();
-
-function crearRoca(){
-  const cv = document.createElement('canvas'); cv.width=16; cv.height=16;
-  const x = cv.getContext('2d');
-  x.fillStyle='#1a1020';
-  x.fillRect(3,4,10,1); x.fillRect(2,5,12,9); x.fillRect(3,14,10,1);
-  x.fillStyle='#8a8a92'; x.fillRect(3,5,10,9);
-  x.fillStyle='#b8b8c2'; x.fillRect(4,5,6,3); x.fillRect(4,8,3,2);
-  x.fillStyle='#5a5a66'; x.fillRect(9,10,4,4); x.fillRect(3,12,10,2);
-  x.fillStyle='#3a3a44'; x.fillRect(7,9,1,3);
-  return cv;
-}
-const SPR_ROCA = crearRoca();
 
 // ================= MUNDO =================
 function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
@@ -344,113 +299,6 @@ const ALDEANO = [
 "....KKK..KKK...."
 ];
 function crearAldeano(H,X,xo){ return crearSprite(ALDEANO, {H, X, x:xo}); }
-
-function crearCasa(techo, techoOsc, cura){
-  const cv = document.createElement('canvas'); cv.width=48; cv.height=40;
-  const x = cv.getContext('2d');
-  // paredes
-  x.fillStyle='#1a1020'; x.fillRect(4,16,40,24);
-  x.fillStyle='#e8d8b0'; x.fillRect(5,17,38,22);
-  x.fillStyle='#c8b48a'; x.fillRect(5,35,38,4);
-  x.fillStyle='#8a4f1a'; x.fillRect(5,17,2,22); x.fillRect(41,17,2,22);
-  // techo
-  for (let j=0;j<18;j++){
-    const m = Math.max(0,14-j);
-    x.fillStyle='#1a1020'; x.fillRect(m,j,48-2*m,1);
-    if (j>0 && j<17){ x.fillStyle = (j%4===0) ? techoOsc : techo; x.fillRect(m+1,j,46-2*m,1); }
-  }
-  x.fillStyle='rgba(255,255,255,.35)'; x.fillRect(14,1,20,1);
-  // puerta
-  x.fillStyle='#1a1020'; x.fillRect(19,26,10,14);
-  x.fillStyle='#8a4f1a'; x.fillRect(20,27,8,13);
-  x.fillStyle='#5a3210'; x.fillRect(23,27,2,13);
-  x.fillStyle='#f5d84a'; x.fillRect(26,33,1,1);
-  // ventanas
-  [9,33].forEach(wx=>{
-    x.fillStyle='#1a1020'; x.fillRect(wx-1,22,8,8);
-    x.fillStyle='#8fd0f0'; x.fillRect(wx,23,6,6);
-    x.fillStyle='#cfefff'; x.fillRect(wx,23,2,2);
-    x.fillStyle='#8a4f1a'; x.fillRect(wx+3,23,1,6); x.fillRect(wx,26,6,1);
-  });
-  // letrero de curandero con corazon
-  if (cura){
-    x.fillStyle='#1a1020'; x.fillRect(16,17,16,8);
-    x.fillStyle='#c8792a'; x.fillRect(17,18,14,6);
-    x.fillStyle='#d83a2a';
-    x.fillRect(21,19,2,1); x.fillRect(25,19,2,1);
-    x.fillRect(21,20,6,1); x.fillRect(22,21,4,1); x.fillRect(23,22,2,1);
-  }
-  return cv;
-}
-
-function crearFuente(){
-  const cv = document.createElement('canvas'); cv.width=32; cv.height=32;
-  const x = cv.getContext('2d');
-  const blob = (cx,cy,rx,ry,col)=>{ x.fillStyle=col; x.beginPath(); x.ellipse(cx,cy,rx,ry,0,0,7); x.fill(); };
-  blob(16,22,15,9,'#1a1020'); blob(16,22,14,8,'#9a9aa6'); blob(16,21,11,5,'#1a1020');
-  blob(16,21,10,4,'#3a8fd0'); blob(12,20,4,1.5,'#8fd0f0');
-  x.fillStyle='#1a1020'; x.fillRect(14,8,4,14);
-  x.fillStyle='#b8b8c2'; x.fillRect(15,9,2,12);
-  blob(16,8,7,3,'#1a1020'); blob(16,8,6,2,'#9a9aa6'); blob(16,7,4,1,'#8fd0f0');
-  return cv;
-}
-
-// Letrero de madera con texto (en un poste)
-function crearLetrero(texto){
-  const cv = document.createElement('canvas'); cv.width=40; cv.height=26;
-  const x = cv.getContext('2d');
-  x.fillStyle='#1a1020'; x.fillRect(17,12,6,14);
-  x.fillStyle='#8a4f1a'; x.fillRect(18,12,4,13);
-  x.fillStyle='#c8792a'; x.fillRect(18,12,1,13);
-  x.fillStyle='#1a1020'; x.fillRect(0,0,40,14);
-  x.fillStyle='#c8792a'; x.fillRect(1,1,38,12);
-  x.fillStyle='#e0a050'; x.fillRect(1,1,38,1);
-  x.fillStyle='#8a4f1a'; x.fillRect(1,12,38,1);
-  x.font='bold 8px monospace'; x.textAlign='center'; x.textBaseline='middle';
-  x.fillStyle='#3a1f0a'; x.fillText(texto, 20, 7.5);
-  return cv;
-}
-
-// Panaderia "El Molinito"
-function crearPanaderia(){
-  const cv = document.createElement('canvas'); cv.width=64; cv.height=48;
-  const x = cv.getContext('2d');
-  // chimenea
-  x.fillStyle='#1a1020'; x.fillRect(45,0,8,12);
-  x.fillStyle='#a04a3a'; x.fillRect(46,1,6,11);
-  // techo de tejas
-  for (let j=2;j<20;j++){
-    const m = Math.max(0, 19-j);
-    x.fillStyle='#1a1020'; x.fillRect(m,j,64-2*m,1);
-    if (j>2 && j<19){ x.fillStyle = (j%3===0) ? '#8a4f1a' : '#c8792a'; x.fillRect(m+1,j,62-2*m,1); }
-  }
-  // paredes
-  x.fillStyle='#1a1020'; x.fillRect(4,19,56,29);
-  x.fillStyle='#f0d8a8'; x.fillRect(5,20,54,27);
-  x.fillStyle='#d8bc88'; x.fillRect(5,44,54,3);
-  // letrero
-  x.fillStyle='#1a1020'; x.fillRect(2,20,60,11);
-  x.fillStyle='#5a3210'; x.fillRect(3,21,58,9);
-  x.font='bold 8px monospace'; x.textAlign='center'; x.textBaseline='middle';
-  x.fillStyle='#ffe8a0'; x.fillText('El Molinito', 32, 25.5, 56);
-  // toldo a rayas
-  for (let i=0;i<14;i++){ x.fillStyle = i%2 ? '#ffffff' : '#d83a2a'; x.fillRect(4+i*4,31,4,4); }
-  x.fillStyle='#1a1020'; x.fillRect(4,35,56,1);
-  // puerta
-  x.fillStyle='#1a1020'; x.fillRect(26,36,12,12);
-  x.fillStyle='#8a4f1a'; x.fillRect(27,37,10,11);
-  x.fillStyle='#cfefff'; x.fillRect(29,38,6,4);
-  x.fillStyle='#f5d84a'; x.fillRect(35,43,1,1);
-  // vitrinas con pan
-  [8,42].forEach(wx=>{
-    x.fillStyle='#1a1020'; x.fillRect(wx-1,36,16,9);
-    x.fillStyle='#cfe6f2'; x.fillRect(wx,37,14,7);
-    x.fillStyle='#8a4f1a'; x.fillRect(wx,42,14,2);
-    x.fillStyle='#c8792a'; x.fillRect(wx+1,40,5,2); x.fillRect(wx+8,39,5,3);
-    x.fillStyle='#f5c070'; x.fillRect(wx+2,40,2,1); x.fillRect(wx+9,39,3,1);
-  });
-  return cv;
-}
 
 function crearFondoPueblo(){
   const cv = document.createElement('canvas'); cv.width=c.width; cv.height=c.height;
@@ -489,14 +337,14 @@ function crearFondoPueblo(){
 
 const pueblo = {
   fondo: crearFondoPueblo(),
-  fuente: {x:112, y:84, w:28, h:16, ox:2, oy:12, spr:crearFuente()},
+  fuente: {x:112, y:84, w:28, h:28, ox:2, oy:6},
   casas: [
-    {x:20,  y:26,  spr:crearCasa('#3a5fd0','#1e2f7a')},
-    {x:184, y:26,  spr:crearCasa('#d83a2a','#8f1f1a', true)},
-    {x:20,  y:134, spr:crearCasa('#2f8f2f','#1f5a24')}
-  ].map(o=>({...o, w:40, h:20, ox:4, oy:18}))
-   .concat([{x:180, y:128, spr:crearPanaderia(), w:56, h:24, ox:4, oy:22, humo:true}]),
-  letreros: [{x:72, y:48, spr:crearLetrero('Lagos'), w:8, h:6, ox:16, oy:20}],
+    {x:20,  y:26,  techo:'#3a5fd0'},
+    {x:184, y:26,  techo:'#d83a2a', cura:true},
+    {x:20,  y:134, techo:'#2f8f2f'}
+  ].map(o=>({...o, w:40, h:28, ox:4, oy:10}))
+   .concat([{x:180, y:128, panaderia:true, techo:'#c8792a', w:56, h:32, ox:4, oy:14}]),
+  letreros: [{x:72, y:48, texto:'Lagos', w:8, h:6, ox:16, oy:20}],
   arbustos: [{x:100,y:156},{x:140,y:156}].map(o=>({...o, w:14, h:12, ox:1, oy:3})),
   npcs: [
     { nombre:'Bruno, el guardia', x:10, y:60, spr:crearAldeano('#6a6a78','#d83a2a','#8f1f1a'),
@@ -710,32 +558,305 @@ function actualizar(){
   if (enemigos.length===0) fin='ganaste';
 }
 
-// ================= DIBUJO =================
-function sombra(x,y,w){ ctx.fillStyle='rgba(0,30,0,.35)'; ctx.fillRect(Math.floor(x),Math.floor(y),w,2); }
+// ================= MUNDO 3D (Three.js) =================
+// La logica del juego sigue en "pixeles" (256x192). Aqui solo se dibuja en 3D:
+// 16 pixeles del juego = 1 unidad 3D. El suelo es el mismo dibujo 2D de siempre.
+const U = 1/16;
+const wx = x => x*U - 8;     // x del juego -> X en 3D
+const wz = y => y*U - 6;     // y del juego -> Z en 3D (profundidad)
+const ESC = 1.2;             // tamano de los personajes
 
-function dibujarLink(){
-  if (p.inv>0 && Math.floor(p.inv/4)%2) return;
-  const bob = (Math.floor(p.paso)%2===1) ? -1 : 0;
-  sombra(p.x-1,p.y+11,12);
-  ctx.drawImage(SPR_LINK[p.dir], Math.floor(p.x-3), Math.floor(p.y-5+bob));
-  if (p.atacando>0){
-    const e=espadaRect(); const s=SPR_ESPADA[p.dir];
-    let sx=e.x, sy=e.y;
-    if (p.dir==='arriba'){ sx=p.x+2; sy=p.y-11; }
-    if (p.dir==='abajo') { sx=p.x+2; sy=p.y+9; }
-    if (p.dir==='izq')   { sx=p.x-11; sy=p.y+2; }
-    if (p.dir==='der')   { sx=p.x+9;  sy=p.y+2; }
-    ctx.drawImage(s, Math.floor(sx), Math.floor(sy));
-    ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=1;
-    ctx.strokeRect(e.x+.5,e.y+.5,e.w-1,e.h-1);
+const g3d = document.getElementById('g3d');
+const renderer = new THREE.WebGLRenderer({canvas:g3d, antialias:false});
+renderer.setPixelRatio(1);
+renderer.setSize(c.width*3, c.height*3, false);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const escena3d = new THREE.Scene();
+escena3d.background = new THREE.Color('#9fd8f5');
+escena3d.fog = new THREE.Fog('#9fd8f5', 24, 42);
+
+const camara = new THREE.PerspectiveCamera(36, c.width/c.height, 0.1, 100);
+const CAM = {y:14, z:15.5, mira:0.4};
+
+escena3d.add(new THREE.HemisphereLight('#e8f6ff', '#55803f', 0.8));
+const sol = new THREE.DirectionalLight('#fff2d8', 0.8);
+sol.position.set(-6, 14, 7); sol.castShadow = true;
+sol.shadow.mapSize.set(1024, 1024);
+Object.assign(sol.shadow.camera, {left:-13, right:13, top:12, bottom:-12, near:1, far:45});
+sol.shadow.camera.updateProjectionMatrix();
+sol.shadow.bias = -0.0015;
+escena3d.add(sol);
+
+// ---------- utilidades ----------
+const mats = {};
+function mat(col){ return mats[col] || (mats[col] = new THREE.MeshStandardMaterial({color:col, flatShading:true, roughness:1, metalness:0})); }
+function malla(geo, col, x, y, z){
+  const m = new THREE.Mesh(geo, typeof col==='string' ? mat(col) : col);
+  m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true; return m;
+}
+const texCache = new Map();
+function texCanvas(cv){
+  if (texCache.has(cv)) return texCache.get(cv);
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  texCache.set(cv, t); return t;
+}
+function sprite(cv, escala=ESC){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({map:texCanvas(cv), alphaTest:0.5, fog:false}));
+  s.center.set(0.5, 0); s.scale.set(cv.width*U*escala, cv.height*U*escala, 1); return s;
+}
+const geoSombra = new THREE.CircleGeometry(0.34, 14).rotateX(-Math.PI/2);
+const matSombra = new THREE.MeshBasicMaterial({color:'#000', transparent:true, opacity:0.28, depthWrite:false});
+function sombra3d(r=1){ const m = new THREE.Mesh(geoSombra, matSombra); m.scale.setScalar(r); m.position.y = 0.02; return m; }
+// personaje = sprite pixel art de pie + sombrita redonda en el suelo
+function personaje(cv, escala){
+  const g = new THREE.Group(); g.userData.spr = sprite(cv, escala);
+  g.add(sombra3d(), g.userData.spr); return g;
+}
+function texTexto(texto, fondoCol, letraCol, w=160, h=36){
+  const cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+  const x = cv.getContext('2d');
+  x.fillStyle=fondoCol; x.fillRect(0,0,w,h);
+  x.font='bold '+Math.floor(h*0.62)+'px monospace'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle=letraCol; x.fillText(texto, w/2, h/2+1, w-10);
+  return new THREE.CanvasTexture(cv);
+}
+// tabla de madera con texto al frente
+function tabla(texto, ancho, alto, fondoCol, letraCol){
+  const g = new THREE.Group();
+  g.add(malla(new THREE.BoxGeometry(ancho+0.1, alto+0.1, 0.08), '#3a1f0a', 0, 0, 0));
+  const frente = new THREE.Mesh(new THREE.PlaneGeometry(ancho, alto),
+    new THREE.MeshStandardMaterial({map:texTexto(texto, fondoCol, letraCol, Math.round(ancho*90), Math.round(alto*90)), roughness:1}));
+  frente.position.z = 0.045; g.add(frente); return g;
+}
+function prisma(largo, prof, alto){   // techo de dos aguas
+  const s = new THREE.Shape(); s.moveTo(-prof/2,0); s.lineTo(prof/2,0); s.lineTo(0,alto); s.lineTo(-prof/2,0);
+  const geo = new THREE.ExtrudeGeometry(s, {depth:largo, bevelEnabled:false});
+  geo.translate(0,0,-largo/2); geo.rotateY(Math.PI/2); return geo;
+}
+
+// ---------- piezas del escenario ----------
+function arbol3d(x, z, esc=1){
+  const g = new THREE.Group();
+  g.add(malla(new THREE.CylinderGeometry(0.13,0.19,0.75,6), '#8a4f1a', 0,0.37,0));
+  g.add(malla(new THREE.IcosahedronGeometry(0.85,0), '#2f8f38', 0,1.15,0));
+  g.add(malla(new THREE.IcosahedronGeometry(0.6,0), '#4cc050', -0.15,1.65,0.1));
+  g.position.set(x,0,z); g.scale.setScalar(esc); g.rotation.y = Math.random()*6; return g;
+}
+function arbusto3d(x, z){
+  const m = malla(new THREE.IcosahedronGeometry(0.46,0), '#3a9a3e', x,0.3,z);
+  m.scale.set(1,0.75,1); m.rotation.y = Math.random()*6; return m;
+}
+function roca3d(x, z){
+  const m = malla(new THREE.DodecahedronGeometry(0.42,0), '#8a8a92', x,0.24,z);
+  m.scale.set(1,0.7,0.9); m.rotation.set(Math.random(), Math.random()*6, 0); return m;
+}
+function letrero3d(texto, x, z){
+  const g = new THREE.Group();
+  g.add(malla(new THREE.CylinderGeometry(0.06,0.07,1.0,6), '#8a4f1a', 0,0.5,0));
+  const t = tabla(texto, 1.5, 0.45, '#c8792a', '#3a1f0a'); t.position.y = 0.95; g.add(t);
+  g.position.set(x,0,z); return g;
+}
+function casa3d(o){
+  const g = new THREE.Group();
+  const ancho = o.w*U, prof = o.h*U, alto = o.panaderia ? 1.35 : 1.2, fz = prof/2 + 0.03;
+  g.position.set(wx(o.x+o.ox+o.w/2), 0, wz(o.y+o.oy+o.h/2));
+  g.add(malla(new THREE.BoxGeometry(ancho, alto, prof), o.panaderia ? '#f0d8a8' : '#e8d8b0', 0,alto/2,0));
+  // vigas en las esquinas
+  [-1,1].forEach(l=>g.add(malla(new THREE.BoxGeometry(0.12,alto,0.12), '#8a4f1a', l*(ancho/2-0.04),alto/2,prof/2-0.04)));
+  g.add(malla(prisma(ancho+0.3, prof+0.35, o.panaderia ? 0.85 : 0.95), o.techo, 0,alto,0));
+  // puerta y ventanas
+  g.add(malla(new THREE.BoxGeometry(0.62,0.85,0.06), '#8a4f1a', 0,0.425,fz));
+  g.add(malla(new THREE.BoxGeometry(0.06,0.06,0.03), '#f5d84a', 0.2,0.42,fz+0.04));
+  const vidrio = o.panaderia ? '#ffe8a0' : '#8fd0f0';
+  [-1,1].forEach(l=>{
+    g.add(malla(new THREE.BoxGeometry(0.5,0.45,0.05), '#5a3210', l*ancho*0.31,o.panaderia?0.5:0.72,fz));
+    g.add(malla(new THREE.BoxGeometry(0.4,0.35,0.06), vidrio, l*ancho*0.31,o.panaderia?0.5:0.72,fz+0.01));
+  });
+  if (o.cura){   // corazon sobre la puerta del curandero
+    const t = tabla('', 0.7, 0.55, '#c8792a', '#c8792a');
+    const h = new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.42), new THREE.MeshBasicMaterial({map:texCanvas(SPR_CORAZON), alphaTest:0.5}));
+    h.position.z = 0.05; t.add(h);
+    t.position.set(0, alto+0.55, fz+0.25); t.rotation.x = -0.55; g.add(t);
   }
+  if (o.panaderia){
+    // letrero grande sobre la fachada, inclinado hacia la camara para que se lea
+    const t = tabla('El Molinito', ancho*0.95, 0.5, '#5a3210', '#ffe8a0');
+    t.position.set(0, alto+0.5, fz+0.3); t.rotation.x = -0.55; g.add(t);
+    [-1,1].forEach(l=>g.add(malla(new THREE.BoxGeometry(0.06,0.6,0.06), '#3a1f0a', l*ancho*0.4, alto+0.15, fz+0.2)));
+    // toldo a rayas rojas y blancas
+    const cv = document.createElement('canvas'); cv.width=14; cv.height=1;
+    const x = cv.getContext('2d'); for (let i=0;i<14;i++){ x.fillStyle = i%2 ? '#ffffff' : '#d83a2a'; x.fillRect(i,0,1,1); }
+    const toldo = malla(new THREE.BoxGeometry(ancho, 0.04, 0.5),
+      new THREE.MeshStandardMaterial({map:texCanvas(cv), roughness:1}), 0,0.98,fz+0.2);
+    toldo.rotation.x = 0.4; g.add(toldo);
+    // chimenea con humo
+    g.add(malla(new THREE.BoxGeometry(0.3,0.7,0.3), '#a04a3a', ancho*0.3,alto+0.55,-0.25));
+    o.humo3d = [0,1,2].map(i=>{
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.16,0.16), new THREE.MeshBasicMaterial({color:'#eef0f5', transparent:true}));
+      g.add(m); return m;
+    });
+    o.chimenea = new THREE.Vector3(ancho*0.3, alto+0.95, -0.25);
+  }
+  return g;
 }
-function dibujarOctorok(en){
-  ctx.globalAlpha = (en.golpe>0 && Math.floor(en.golpe/3)%2) ? 0.35 : 1;
-  sombra(en.x,en.y+12,12);
-  ctx.drawImage(SPR_OCTO, Math.floor(en.x-2), Math.floor(en.y-3));
-  ctx.globalAlpha=1;
+function fuente3d(fu){
+  const g = new THREE.Group();
+  g.position.set(wx(fu.x+fu.ox+fu.w/2), 0, wz(fu.y+fu.oy+fu.h/2));
+  g.add(malla(new THREE.CylinderGeometry(0.95,1.02,0.38,12), '#9a9aa6', 0,0.19,0));
+  const agua = new THREE.MeshStandardMaterial({color:'#3a8fd0', emissive:'#12406a', roughness:0.3, flatShading:true});
+  g.add(malla(new THREE.CylinderGeometry(0.8,0.8,0.05,12), agua, 0,0.36,0));
+  g.add(malla(new THREE.CylinderGeometry(0.11,0.15,0.95,6), '#b8b8c2', 0,0.6,0));
+  g.add(malla(new THREE.CylinderGeometry(0.38,0.2,0.16,10), '#9a9aa6', 0,1.1,0));
+  g.add(malla(new THREE.CylinderGeometry(0.3,0.3,0.03,10), agua, 0,1.18,0));
+  fu.gotas = [0,1,2,3,4,5].map(()=>{ const m = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,0.06), new THREE.MeshBasicMaterial({color:'#cfefff'})); g.add(m); return m; });
+  return g;
 }
+// arboles alrededor del borde para que el mundo no termine "en el aire".
+// "hueco" deja libre el camino entre el campo y el pueblo.
+function bordeArboles(grupo, hueco, semilla){
+  const r = rnd(semilla);
+  const libre = (x,z)=> hueco && Math.abs(x - hueco.x) < 1.6 && z > wz(CAMINO_Y1)-0.6 && z < wz(CAMINO_Y2)+0.6;
+  for (let x=-10.5; x<=10.5; x+=1.3) grupo.add(arbol3d(x + r()*0.4, -7.1 - r()*0.8, 0.95 + r()*0.3));
+  for (let z=-6.5; z<=7.5; z+=1.3){
+    [-9.1, 9.1].forEach(x=>{ if (!libre(x,z)) grupo.add(arbol3d(x + (x<0?-1:1)*r()*0.5, z + r()*0.3, 0.9 + r()*0.3)); });
+  }
+  for (let x=-8; x<=8; x+=1.1) grupo.add(arbusto3d(x + r()*0.3, 6.6 + r()*0.3));
+}
+
+// ---------- armar los dos escenarios ----------
+const pasto = new THREE.Mesh(new THREE.PlaneGeometry(90,90), new THREE.MeshStandardMaterial({color:'#4c9a3a', roughness:1}));
+pasto.rotation.x = -Math.PI/2; pasto.position.y = -0.02; pasto.receiveShadow = true;
+escena3d.add(pasto);
+function suelo(cv){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(16,12), new THREE.MeshStandardMaterial({map:texCanvas(cv), roughness:1}));
+  m.rotation.x = -Math.PI/2; m.receiveShadow = true; return m;
+}
+// camino de tierra que sale de la pantalla hacia el otro escenario
+function caminoFuera(grupo, x, col){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(3, 1.5), new THREE.MeshStandardMaterial({color:col, roughness:1}));
+  m.rotation.x = -Math.PI/2; m.position.set(x, -0.01, wz(94)); m.receiveShadow = true; grupo.add(m);
+}
+
+const grupoCampo = new THREE.Group(), grupoPueblo = new THREE.Group();
+escena3d.add(grupoCampo, grupoPueblo);
+
+grupoCampo.add(suelo(fondo));
+caminoFuera(grupoCampo, 9.5, '#c8a46a');
+arboles.forEach(o=>grupoCampo.add(arbol3d(wx(o.x+16), wz(o.y+20))));
+arbustos.forEach(o=>grupoCampo.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
+rocas.forEach(o=>grupoCampo.add(roca3d(wx(o.x+8), wz(o.y+9))));
+grupoCampo.add(letrero3d('Lagos →', wx(206), wz(70)));
+bordeArboles(grupoCampo, {x:9.1}, 5);
+
+grupoPueblo.add(suelo(pueblo.fondo));
+caminoFuera(grupoPueblo, -9.5, '#b0a084');
+pueblo.casas.forEach(o=>grupoPueblo.add(casa3d(o)));
+grupoPueblo.add(fuente3d(pueblo.fuente));
+pueblo.letreros.forEach(o=>grupoPueblo.add(letrero3d(o.texto, wx(o.x+o.ox+o.w/2), wz(o.y+o.oy+o.h/2))));
+pueblo.arbustos.forEach(o=>grupoPueblo.add(arbusto3d(wx(o.x+8), wz(o.y+9))));
+bordeArboles(grupoPueblo, {x:-9.1}, 9);
+
+// ---------- personajes y objetos que se mueven ----------
+const linkObj = personaje(SPR_LINK.abajo);
+const espadaSpr = new THREE.Sprite(new THREE.SpriteMaterial({map:texCanvas(SPR_ESPADA.arriba), alphaTest:0.5, fog:false}));
+escena3d.add(linkObj, espadaSpr);
+
+pueblo.npcs.forEach(n=>{ n.obj = personaje(n.spr); grupoPueblo.add(n.obj); });
+const cvBurbuja = document.createElement('canvas'); cvBurbuja.width=10; cvBurbuja.height=10;
+(function(){ const x=cvBurbuja.getContext('2d');
+  x.fillStyle='#1a1020'; x.fillRect(0,0,10,10); x.fillStyle='#fff'; x.fillRect(1,1,8,8);
+  x.fillStyle='#1a1020'; x.fillRect(4,2,2,4); x.fillRect(4,7,2,1); })();
+const burbuja = sprite(cvBurbuja, 1.4);
+grupoPueblo.add(burbuja);
+
+const geoBala = new THREE.IcosahedronGeometry(0.13, 0);
+const mapEnemigos = new Map(), mapDrops = new Map(), mapBalas = new Map(), mapParticulas = new Map();
+// crea/actualiza/borra los objetos 3D para que sigan a las listas del juego
+function sincronizar(lista, mapa, crear, actualizar, padre){
+  const vistos = new Set();
+  lista.forEach(o=>{
+    let obj = mapa.get(o);
+    if (!obj){ obj = crear(o); mapa.set(o, obj); padre.add(obj); }
+    actualizar(o, obj); vistos.add(o);
+  });
+  mapa.forEach((obj, o)=>{
+    if (vistos.has(o)) return;
+    padre.remove(obj); mapa.delete(o);
+    obj.traverse(m=>{ if (m.material && m.material!==matSombra && !Object.values(mats).includes(m.material)) m.material.dispose(); });
+  });
+}
+
+function actualizar3d(){
+  const t = Date.now();
+  grupoCampo.visible = escena==='campo';
+  grupoPueblo.visible = escena==='pueblo';
+
+  // jugador
+  const lx = wx(p.x+5), lz = wz(p.y+10);
+  const ls = linkObj.userData.spr;
+  ls.material.map = texCanvas(SPR_LINK[p.dir]);
+  ls.position.y = (Math.floor(p.paso)%2===1) ? 0.06 : 0;
+  linkObj.position.set(lx, 0, lz);
+  linkObj.visible = !(p.inv>0 && Math.floor(p.inv/4)%2);
+  espadaSpr.visible = p.atacando>0;
+  if (p.atacando>0){
+    const cv = SPR_ESPADA[p.dir];
+    espadaSpr.material.map = texCanvas(cv);
+    espadaSpr.scale.set(cv.width*U*ESC, cv.height*U*ESC, 1);
+    const off = {arriba:[0,0.95,-0.5], abajo:[0,0.3,0.5], izq:[-0.7,0.5,0], der:[0.7,0.5,0]}[p.dir];
+    espadaSpr.position.set(lx+off[0], off[1], lz+off[2]);
+  }
+
+  // camara: fija sobre la pantalla, con un pequeno seguimiento al jugador
+  const cx = lx*0.3, cz = lz*0.06;
+  camara.position.set(cx, CAM.y, CAM.z + cz);
+  camara.lookAt(cx, 0, CAM.mira + cz);
+
+  if (escena==='campo'){
+    sincronizar(enemigos, mapEnemigos, ()=>personaje(SPR_OCTO), (en,obj)=>{
+      obj.position.set(wx(en.x+6), 0, wz(en.y+12));
+      obj.userData.spr.material.opacity = (en.golpe>0 && Math.floor(en.golpe/3)%2) ? 0.35 : 1;
+      obj.userData.spr.material.transparent = en.golpe>0;
+    }, grupoCampo);
+    sincronizar(drops, mapDrops, d=>{
+      const s = sprite(d.tipo==='corazon' ? SPR_CORAZON : SPR_RUPIA, 1); s.center.set(0.5,0.5); return s;
+    }, (d,s)=>s.position.set(wx(d.x+5), 0.35+Math.sin(t/150+d.x)*0.08, wz(d.y+8)), grupoCampo);
+    sincronizar(balas, mapBalas, ()=>malla(geoBala, '#c8792a', 0,0,0),
+      (b,m)=>m.position.set(wx(b.x+2), 0.4, wz(b.y+4)), grupoCampo);
+  } else {
+    pueblo.npcs.forEach(n=>{
+      n.obj.position.set(wx(n.x+5), 0, wz(n.y+10));
+      n.obj.userData.spr.position.y = (Math.floor(n.paso)%2===1) ? 0.06 : 0;
+    });
+    const n = !dialogo && npcCercano();
+    burbuja.visible = !!n;
+    if (n) burbuja.position.set(wx(n.x+5), 1.45 + Math.sin(t/200)*0.06, wz(n.y+10));
+    const fu = pueblo.fuente;
+    fu.gotas.forEach((m,i)=>{
+      const k = ((t/700) + i/fu.gotas.length) % 1, ang = i*Math.PI/3;
+      m.position.set(Math.cos(ang)*(0.3+k*0.4), 1.2 + k*0.2 - k*k*1.1, Math.sin(ang)*(0.3+k*0.4));
+    });
+    pueblo.casas.forEach(o=>{
+      if (!o.humo3d) return;
+      o.humo3d.forEach((m,i)=>{
+        const k = ((t/1800) + i/3) % 1;
+        m.position.set(o.chimenea.x + Math.sin(k*6+i)*0.12, o.chimenea.y + k*1.1, o.chimenea.z);
+        m.scale.setScalar(0.6 + k*1.2); m.material.opacity = 1-k;
+      });
+    });
+  }
+
+  // chispas
+  sincronizar(particulas, mapParticulas, q=>{
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({color:q.col, transparent:true, fog:false}));
+    s.scale.set(0.14,0.14,1); return s;
+  }, (q,s)=>{ s.position.set(wx(q.x), 0.5 + (20-q.vida)*0.02, wz(q.y)); s.material.opacity = q.vida/20; }, escena3d);
+}
+
+// ================= HUD Y TEXTOS (capa 2D encima del 3D) =================
 function dibujarHUD(){
   ctx.fillStyle='#000'; ctx.fillRect(3,3,20,20);
   ctx.strokeStyle='#d8d8e0'; ctx.strokeRect(3.5,3.5,19,19);
@@ -751,51 +872,6 @@ function dibujarHUD(){
   ctx.fillStyle='#bfe6ff'; ctx.fillRect(28,6,Math.max(0,p.est*0.5),1);
   ctx.drawImage(SPR_RUPIA,27,15);
   ctx.fillStyle='#fff'; ctx.font='8px monospace'; ctx.fillText('x'+p.rupias,37,22);
-}
-
-function dibujarPueblo(){
-  ctx.drawImage(pueblo.fondo,0,0);
-  const cosas = [];
-  pueblo.casas.forEach(o=>cosas.push({y:o.y+o.spr.height,f:()=>{
-    sombra(o.x+4, o.y+o.spr.height-2, o.spr.width-8); ctx.drawImage(o.spr,o.x,o.y);
-    if (o.humo){   // humito saliendo de la chimenea del horno
-      const t = Date.now()/120;
-      for (let i=0;i<3;i++){
-        const k = (t+i*6)%18;
-        ctx.fillStyle = 'rgba(230,230,240,'+(1-k/18)+')';
-        ctx.fillRect(Math.floor(o.x+48+Math.sin(k/3+i)*2), Math.floor(o.y-1-k), 3, 3);
-      }
-    }
-  }}));
-  pueblo.letreros.forEach(o=>cosas.push({y:o.y+26,f:()=>{ sombra(o.x+14,o.y+25,12); ctx.drawImage(o.spr,o.x,o.y); }}));
-  const fu = pueblo.fuente;
-  cosas.push({y:fu.y+30,f:()=>{
-    ctx.drawImage(fu.spr,fu.x,fu.y);
-    // gotas cayendo de la fuente
-    const t = Date.now()/90;
-    ctx.fillStyle='#cfefff';
-    for (let i=0;i<4;i++){
-      const k = (t+i*2.5)%10, lado = i%2 ? 1 : -1;
-      ctx.fillRect(Math.floor(fu.x+16+lado*(3+k*0.6)), Math.floor(fu.y+8+k*1.2), 1, 1);
-    }
-  }});
-  pueblo.arbustos.forEach(o=>cosas.push({y:o.y+16,f:()=>{ sombra(o.x+1,o.y+13,14); ctx.drawImage(SPR_ARBUSTO,o.x,o.y); }}));
-  pueblo.npcs.forEach(n=>cosas.push({y:n.y+10,f:()=>{
-    const bob = (Math.floor(n.paso)%2===1) ? -1 : 0;
-    sombra(n.x-1,n.y+11,12);
-    ctx.drawImage(n.spr, Math.floor(n.x-3), Math.floor(n.y-5+bob));
-  }}));
-  cosas.push({y:p.y+10,f:dibujarLink});
-  cosas.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
-
-  // Globito "!" sobre el aldeano con el que puedes hablar
-  const n = !dialogo && npcCercano();
-  if (n){
-    const bx=Math.floor(n.x+1), by=Math.floor(n.y-16+Math.sin(Date.now()/200));
-    ctx.fillStyle='#1a1020'; ctx.fillRect(bx-1,by-1,10,10);
-    ctx.fillStyle='#fff'; ctx.fillRect(bx,by,8,8);
-    ctx.fillStyle='#1a1020'; ctx.fillRect(bx+3,by+1,2,4); ctx.fillRect(bx+3,by+6,2,1);
-  }
 }
 
 function partirTexto(txt, ancho){
@@ -828,27 +904,11 @@ function dibujarCartel(){
   ctx.textAlign='left'; ctx.globalAlpha=1;
 }
 
-function dibujarCampo(){
-  ctx.drawImage(fondo,0,0);
-  const cosas = [];
-  rocas.forEach(o=>cosas.push({y:o.y+16,f:()=>ctx.drawImage(SPR_ROCA,o.x,o.y)}));
-  arbustos.forEach(o=>cosas.push({y:o.y+16,f:()=>{ sombra(o.x+1,o.y+13,14); ctx.drawImage(SPR_ARBUSTO,o.x,o.y); }}));
-  arboles.forEach(o=>cosas.push({y:o.y+32,f:()=>{ sombra(o.x+2,o.y+30,28); ctx.drawImage(SPR_ARBOL,o.x,o.y); }}));
-  drops.forEach(d=>cosas.push({y:d.y,f:()=>{
-    const flota=Math.sin(Date.now()/150+d.x)*1;
-    ctx.drawImage(d.tipo==='corazon'?SPR_CORAZON:SPR_RUPIA, d.x, d.y+flota);
-  }}));
-  enemigos.forEach(e=>cosas.push({y:e.y+12,f:()=>dibujarOctorok(e)}));
-  cosas.push({y:p.y+10,f:dibujarLink});
-  balas.forEach(b=>cosas.push({y:b.y,f:()=>{ ctx.fillStyle='#1a1020'; ctx.fillRect(b.x-1,b.y-1,6,6); ctx.fillStyle='#c8792a'; ctx.fillRect(b.x,b.y,4,4); ctx.fillStyle='#ffd08a'; ctx.fillRect(b.x,b.y,2,2); }}));
-  cosas.sort((a,b)=>a.y-b.y).forEach(o=>o.f());
-}
-
 function dibujar(){
-  if (escena==='pueblo') dibujarPueblo(); else dibujarCampo();
+  actualizar3d();
+  renderer.render(escena3d, camara);
 
-  particulas.forEach(q=>{ ctx.fillStyle=q.col; ctx.globalAlpha=q.vida/20; ctx.fillRect(q.x,q.y,2,2); });
-  ctx.globalAlpha=1;
+  ctx.clearRect(0,0,c.width,c.height);
   dibujarHUD();
   if (cartel) dibujarCartel();
   if (dialogo) dibujarDialogo();
