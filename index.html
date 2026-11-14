@@ -463,7 +463,7 @@ for (let i=0;i<5;i++){
 // ================= ESPADA: TAJO Y REMOLINO =================
 // Toque de Espacio = tajo en arco. Mantener = cargar (la espada brilla).
 // Soltar con la carga llena = remolino: una vuelta completa que golpea todo alrededor.
-const T_TAJO = 14, T_GIRO = 22, T_CARGA = 45, LARGO_ESPADA = 19;
+const T_TAJO = 14, T_GIRO = 22, T_CARGA = 45, LARGO_ESPADA = 23;
 const ANG_DIR = {der:0, abajo:Math.PI/2, izq:Math.PI, arriba:-Math.PI/2};
 // angulo de la espada en el plano del juego (x a la derecha, y hacia abajo)
 function anguloEspada(){
@@ -489,7 +489,7 @@ function revisarGolpes(){
     });
   } else if (p.atacando>0){
     const a = anguloEspada(), base = ANG_DIR[p.dir];
-    const zonas = [9, LARGO_ESPADA].map(r=>({x:cx+Math.cos(a)*r-4, y:cy+Math.sin(a)*r-4, w:8, h:8}));
+    const zonas = [12, LARGO_ESPADA].map(r=>({x:cx+Math.cos(a)*r-4, y:cy+Math.sin(a)*r-4, w:8, h:8}));
     enemigos.forEach(en=>{ if (en.golpe<=0 && zonas.some(z=>solapa(z,en))) golpear(en, 1, Math.cos(base), Math.sin(base), 20); });
   }
 }
@@ -953,8 +953,11 @@ espada3d.add(malla(new THREE.BoxGeometry(0.2,0.07,0.07), '#8a4f1a', 0.07,0,0));
 // estela blanca que deja la espada al moverse
 const estela = new THREE.Mesh(new THREE.BufferGeometry(),
   new THREE.MeshBasicMaterial({color:'#ffffff', transparent:true, opacity:0.45, depthWrite:false, side:THREE.DoubleSide, fog:false}));
-espada3d.scale.setScalar(1.15);
-escena3d.add(linkObj, espada3d, estela);
+// brazo (manga verde) y puno que sostienen la espada
+const brazo = malla(new THREE.CylinderGeometry(0.09,0.1,1,6), '#2f8f2f', 0,0,0);
+const puno = malla(new THREE.BoxGeometry(0.15,0.15,0.15), '#f2c9a0', 0,0,0);
+const ARRIBA = new THREE.Vector3(0,1,0);
+escena3d.add(linkObj, espada3d, estela, brazo, puno);
 
 pueblo.npcs.forEach(n=>{ n.obj = personaje(n.spr); grupoPueblo.add(n.obj); });
 const cvBurbuja = document.createElement('canvas'); cvBurbuja.width=10; cvBurbuja.height=10;
@@ -1004,10 +1007,20 @@ function actualizar3d(){
   const cargando = p.carga>=0 && p.atacando===0 && p.giro===0;
   espada3d.visible = p.atacando>0 || p.giro>0 || cargando;
   estela.visible = p.atacando>0 || p.giro>0;
+  brazo.visible = puno.visible = espada3d.visible;
   if (espada3d.visible){
-    const a = anguloEspada(), yE = piso + 0.42, zc = wz(p.y+p.h/2);
-    espada3d.position.set(lx, yE, zc);
+    // la espada sale de la mano: el hombro esta en el cuerpo y la mano
+    // gira alrededor del personaje siguiendo el golpe
+    const a = anguloEspada(), yE = piso + 0.36;
+    const hombro = new THREE.Vector3(lx, piso + 0.5, lz - 0.05);
+    const mano = new THREE.Vector3(lx + Math.cos(a)*0.38, yE, lz + Math.sin(a)*0.38);
+    espada3d.position.copy(mano);
     espada3d.rotation.set(0, -a, 0);
+    puno.position.copy(mano); puno.rotation.set(0, -a, 0);
+    const tramo = mano.clone().sub(hombro);
+    brazo.position.copy(hombro).addScaledVector(tramo, 0.5);
+    brazo.scale.set(1, tramo.length(), 1);
+    brazo.quaternion.setFromUnitVectors(ARRIBA, tramo.normalize());
     // brillo: sube mientras carga, parpadea azul cuando esta lista y durante el remolino
     let brillo = 0;
     if (cargando) brillo = p.carga>=T_CARGA ? (Math.floor(t/90)%2 ? 1 : 0.5) : p.carga/T_CARGA*0.35;
@@ -1017,8 +1030,8 @@ function actualizar3d(){
       const inicio = p.giro>0 ? ANG_DIR[p.dir] : ANG_DIR[p.dir]-1.4;
       const barrido = Math.max(0.05, a - inicio);
       estela.geometry.dispose();
-      estela.geometry = new THREE.RingGeometry(0.3, 1.35, 24, 1, -a, barrido).rotateX(-Math.PI/2);
-      estela.position.set(lx, yE, zc);
+      estela.geometry = new THREE.RingGeometry(0.45, 1.55, 24, 1, -a, barrido).rotateX(-Math.PI/2);
+      estela.position.set(lx, yE, lz);
       estela.material.color.set(p.giro>0 ? '#8fd8ff' : '#ffffff');
       estela.material.opacity = p.giro>0 ? 0.75 : 0.6;
     }
